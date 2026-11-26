@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:17-alpine
+    container_name: simpanjual-postgres
+    network_mode: host
+    restart: unless-stopped
+    command: ["postgres", "-c", "port=5435"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-simpanjual}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simpanjual_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-simpanjual}
+    volumes:
+      - simpanjual_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -p 5435 -U ${POSTGRES_USER:-simpanjual} -d ${POSTGRES_DB:-simpanjual}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  simpanjual_pgdata:
