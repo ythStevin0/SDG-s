@@ -1,0 +1,19 @@
+-- 001_init.down.sql
+-- Reversible down migration (urutan terbalik sesuai foreign key)
+
+DROP TABLE IF EXISTS idempotency_keys CASCADE;
+DROP TABLE IF EXISTS ai_logs CASCADE;
+DROP TABLE IF EXISTS impact_events CASCADE;
+DROP TABLE IF EXISTS sale_offers CASCADE;
+DROP TABLE IF EXISTS buyer_demands CASCADE;
+DROP TABLE IF EXISTS rental_requests CASCADE;
+DROP TABLE IF EXISTS lot_contributions CASCADE;
+DROP TABLE IF EXISTS lots CASCADE;
+DROP TABLE IF EXISTS warehouses CASCADE;
+DROP TABLE IF EXISTS decisions CASCADE;
+DROP TABLE IF EXISTS stocks CASCADE;
+DROP TABLE IF EXISTS price_points CASCADE;
+DROP TABLE IF EXISTS commodities CASCADE;
+DROP TABLE IF EXISTS farmer_group_members CASCADE;
+DROP TABLE IF EXISTS farmer_groups CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
