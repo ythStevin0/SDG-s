@@ -1,10 +1,28 @@
-node_modules
-.next
-out
-build
-coverage
+# Environment & Secrets (Jangan pernah commit kredensial rahasia)
 .env
 .env*.local
-*.tsbuildinfo
-next-env.d.ts
+
+# Go Backend Binaries
+backend/bin/
+*.exe
+*.test
+
+# Flutter / Dart Build Artifacts
+mobile/.dart_tool/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/android/local.properties
+
+# React.js Web Artifacts
+node_modules/
+web/node_modules/
+web/dist/
+dist/
+coverage/
+.next/
+
+# OS / Editor
 .DS_Store
+~$*

@@ -17,5 +17,31 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: ./backend
+      dockerfile: Containerfile
+    container_name: simpanjual-api
+    network_mode: host
+    profiles: ["full"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: ${PORT:-8080}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://simpanjual:simpanjual_dev@127.0.0.1:5435/simpanjual}
+      JWT_SECRET: ${JWT_SECRET:-simpanjual-dev-secret-change-in-production-min-32-chars}
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Containerfile
+    container_name: simpanjual-web
+    ports:
+      - "5173:80"
+    profiles: ["full"]
+    depends_on:
+      - api
+
 volumes:
   simpanjual_pgdata:
