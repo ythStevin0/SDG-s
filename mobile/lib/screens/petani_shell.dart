@@ -271,6 +271,9 @@ class _PetaniShellState extends State<PetaniShell> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
             FilledButton(
               onPressed: () async {
+                final rootMessenger = ScaffoldMessenger.of(context);
+                final dialogMessenger = ScaffoldMessenger.of(ctx);
+                final nav = Navigator.of(ctx);
                 try {
                   await widget.appState.api.submitRental(widget.appState.currentUser!, {
                     if (!useLot) 'stockId': selectedStockId,
@@ -279,16 +282,16 @@ class _PetaniShellState extends State<PetaniShell> {
                     'qtyKg': double.tryParse(qtyCtrl.text) ?? 0,
                     'hari': int.tryParse(hariCtrl.text) ?? 30,
                   });
-                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) nav.pop();
                   await _refreshAll();
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    rootMessenger.showSnackBar(
                       const SnackBar(content: Text('Pengajuan sewa berhasil dikirim secara atomik!')),
                     );
                   }
                 } catch (e) {
                   if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
+                    dialogMessenger.showSnackBar(
                       SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
                     );
                   }
@@ -362,6 +365,9 @@ class _PetaniShellState extends State<PetaniShell> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
             FilledButton(
               onPressed: () async {
+                final rootMessenger = ScaffoldMessenger.of(context);
+                final dialogMessenger = ScaffoldMessenger.of(ctx);
+                final nav = Navigator.of(ctx);
                 try {
                   await widget.appState.api.submitSale(widget.appState.currentUser!, {
                     'stockId': stockId,
@@ -369,16 +375,16 @@ class _PetaniShellState extends State<PetaniShell> {
                     'qtyKg': double.tryParse(qtyCtrl.text) ?? 0,
                     'hargaTawar': int.tryParse(tawarCtrl.text) ?? dem.hargaAcuan,
                   });
-                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (ctx.mounted) nav.pop();
                   await _refreshAll();
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    rootMessenger.showSnackBar(
                       const SnackBar(content: Text('Penawaran jual terkirim!')),
                     );
                   }
                 } catch (e) {
                   if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
+                    dialogMessenger.showSnackBar(
                       SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
                     );
                   }
