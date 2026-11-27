@@ -6,11 +6,11 @@
 |---|---|
 | Lomba | SEVENT X — Software Development (HMSE Telkom University Purwokerto) |
 | Tema lomba | *"Tech for Society: Building Smart, Scalable and Intuitive Solutions"* (Sub-tema SoftDev: *"Developing Sustainable Tech Solutions for Society"*) |
-| Kategori | Website (responsif, fungsional, optimal, aksesibel) |
+| Kategori | **Mobile Application (Flutter & Dart — Android APK, Web, & Desktop)** + Pendamping Lintas-Platform (**React.js Web**) |
 | Subtema SDG Tunggal (sesuai Rulebook) | **SDG 8 — Decent Work and Economic Growth** (peningkatan pendapatan & kepastian ekonomi petani) |
 | Dampak Ikutan (*Co-benefits*) | SDG 2 (Zero Hunger — ketahanan pasokan pangan) & SDG 12 (Responsible Consumption and Production — reduksi susut pascapanen) |
 | Batas submit | Senin, 30 November 2026 (Penilaian 1–4 Des, Pengumuman Finalis 5 Des, Final 10 Des, Daring) |
-| Versi dokumen | **2.1 — 25 November 2026** (Arsitektur **Podman PostgreSQL + Drizzle ORM + JWT Session + Cloud Postgres Portabel**, serta kepatuhan rulebook, konversi pengeringan GKP→GKG, pembulatan unit test, skor gudang anti-`NaN`, prediksi *damped/seasonal*, transaksi atomik `FOR UPDATE`, validator AI berbasis satuan, 9 rute UI, dan jadwal darurat) |
+| Versi dokumen | **2.2 — 27 November 2026** (Arsitektur **Cross-Platform Modular Monolith: Flutter Dart Mobile + React.js Web + Go Backend + Podman PostgreSQL 17**, transaksi atomik `SELECT ... FOR UPDATE` dengan urutan kunci konsisten, `Idempotency-Key`, Token-Bucket Rate Limit, `TTLCache`, B-Tree Indexes, Mode Simulasi Offline Mandiri di APK, serta suara TTS `id-ID`) |
 | Status | Siap Eksekusi (Sprint 25–30 November 2026) |
 
 > **Catatan jujur tentang dokumen ini.** Angka parameter bawaan (susut, tarif sewa, biaya pengeringan, bunga, ambang kadar air) di Bagian 8 adalah **placeholder terkonfigurasi** untuk demonstrasi dan wajib diverifikasi ke sumber resmi (SNI/Bappebti/literatur pascapanen) sebelum finalisasi proposal. Seluruh data pasar/gudang/pembeli ilustratif diberi penanda eksplisit `is_demo = true`. Persentase kemiripan dengan solusi lain di Bagian 18 adalah perkiraan dari penelusuran terbatas, bukan audit hukum/orisinalitas formal.
@@ -581,56 +581,41 @@ Untuk mencegah *race condition*, penyalahgunaan hak akses lintas-peran, dan kapa
 
 ---
 
-## 10. Arsitektur dan Tumpukan Teknologi
+## 10. Arsitektur dan Tumpukan Teknologi (Cross-Platform Modular Monolith)
 
 | Lapisan | Pilihan | Alasan |
 |---|---|---|
-| Frontend & API | **Next.js 15 (App Router) + React 19 + TypeScript strict + Tailwind CSS** | Satu repositori penuh, SSR/CSR cepat, route handler aman untuk DB & kunci LLM |
-| Komponen UI | **shadcn/ui + Radix UI + Lucide Icons** | Aksesibilitas WAI-ARIA bawaan |
-| Grafik & Peta | **Recharts + Leaflet (OpenStreetMap)** | Ringan, interaktif, 100% gratis tanpa tagihan API |
-| Database & ORM | **Podman PostgreSQL 17 (lokal) / Cloud Postgres (prod) + Drizzle ORM + `postgres.js`** | Transaksi `FOR UPDATE` atomik, *zero vendor lock-in*, tipe TS penuh |
-| Autentikasi | **JWT `httpOnly` Cookie (`jose` + `bcryptjs`) + Middleware Next.js** | Ringan, instan untuk 1-Click Demo Login, 100% di kendali aplikasi |
-| Logika & Prediksi | **Modul TypeScript murni (`/lib/engine`, `/lib/forecast`)** | Terisolasi dari UI, mudah diuji tuntas oleh Vitest |
-| AI Opsional | **Vercel AI SDK (`ai` + `@ai-sdk/google`) + Zod + `guard.ts`** | Aman dari kebocoran kunci API, bebas halusinasi angka |
-| CI & Hosting | **GitHub Actions (Lint + Typecheck + Vitest) + Vercel** | Deployment berkelanjutan, uptime terjaga |
+| Aplikasi Utama (Kategori Mobile) | **Flutter 3.47 (Dart 3.13) — Material 3** | Satu kode untuk Android APK, Flutter Web, dan Desktop; performa 60fps; dilengkapi Mode Offline Mandiri saat diuji tanpa server lokal |
+| Aplikasi Pendamping Web | **React.js 19 + TypeScript strict + Vite + Tailwind CSS** | Klien web ringan yang mengonsumsi REST API Modular Monolith yang identik |
+| Backend Modular Monolith | **Go (Golang 1.26) + `net/http` + `log/slog`** | Terbagi ke 8 modul terisolasi (`auth`, `catalog`, `stock`, `lot`, `warehouse`, `demand`, `impact`, `ai`) dalam satu binary cepat dan hemat memori |
+| Database & Kontainer | **Podman PostgreSQL 17 (`compose.yaml`, port `5435`) + `pgx/v5` (`pgxpool`)** | Query berparameter anti-SQLi, transaksi `SELECT ... FOR UPDATE` dengan urutan kunci konsisten, 20+ B-Tree Indexes, dan migrasi terversi `up`/`down` |
+| Keamanan, Cache & Ketahanan | **JWT `HS256` + RBAC + Token-Bucket Rate Limit + `Idempotency-Key` + `TTLCache`** | Mencegah *double-booking* saat *retry* sinyal desa, mencegah *stale cache* lewat *write-through invalidation*, dan membatasi ukuran payload 1 MB |
+| Peta, Grafik & Suara | **`flutter_map` (OpenStreetMap) + `CustomPainter` Chart + `flutter_tts` (`id-ID`)** | Interaktif, 100% gratis tanpa kunci API berbayar, aksesibel bagi petani di bawah terik matahari (`Aa+ Mode Lapangan`) |
+| AI Opsional Terkendali | **Gemini REST API (`8s timeout` + *exponential backoff + jitter*) + `aiguard.go`** | Kunci API aman di server Go, bebas halusinasi angka berunit, dan otomatis jatuh ke template deterministik bila AI mati |
+| CI & Distribusi | **GitHub Actions (Go Test + Flutter Analyze/Test + React Build) + APK Rilis** | Pengujian terotomatisasi di ketiga lapisan monorepo |
 
-### 10.1 Struktur folder
+### 10.1 Struktur folder monorepo
 
 ```
 simpanjual/
-├── compose.yaml                  # Kontainer Podman postgres:17-alpine (port 5435:5432)
+├── compose.yaml                  # Kontainer Podman postgres:17-alpine (port 5435) + profil full API/Web
 ├── scripts/
 │   └── db-container.mjs          # CLI helper podman up/down/status lintas platform
-├── src/
-│   ├── app/
-│   │   ├── page.tsx              # 1. Landing + simulator mini + ringkasan dampak
-│   │   ├── masuk/page.tsx        # 2. Login, Register & 1-Click Demo Login (5 akun)
-│   │   ├── petani/page.tsx       # 3. Dashboard stok + drawer tambah stok + grafik harga
-│   │   ├── petani/stok/[id]/page.tsx # 4. Layar Bintang: Keputusan F4 + Panjar F5 + Kesiapan F6 + AI
-│   │   ├── petani/simpan/page.tsx    # 5. Tab Peta/Skor Gudang F8+F9 & Tab Lot Kolektif F7
-│   │   ├── petani/jual/page.tsx      # 6. Tab Janji Beli F10+F11 & Tab Riwayat Pengajuan
-│   │   ├── gudang/page.tsx       # 7. Dashboard Pengelola Gudang (Profil/Kapasitas + Permintaan Masuk)
-│   │   ├── pembeli/page.tsx      # 8. Dashboard Pembeli (Kebutuhan Pasokan + Penawaran Masuk)
-│   │   ├── admin/page.tsx        # 9. Konfigurasi Parameter JSONB Komoditas & Moderasi
-│   │   └── api/
-│   │       ├── health/route.ts   # Healthcheck koneksi PostgreSQL & jumlah data
-│   │       ├── auth/{login,register,demo,logout}/route.ts
-│   │       └── ai/{explain,extract}/route.ts
-│   ├── components/               # UI, AccessibilityToolbar, SpeechButton, Recharts, Leaflet
-│   ├── db/
-│   │   ├── index.ts              # Koneksi Drizzle + postgres.js singleton
-│   │   ├── schema.ts             # 15 tabel PostgreSQL + relasi
-│   │   ├── transactions.ts       # 4 transaksi atomik FOR UPDATE (rental & sale)
-│   │   └── seed.ts               # Seed idempoten (komoditas, harga 64 minggu, gudang, pembeli, demo users)
-│   ├── lib/
-│   │   ├── auth.ts               # Session JWT (jose) + hash password (bcryptjs)
-│   │   ├── constants/regions.ts  # Tabel centroid lat/lng kabupaten fallback + Haversine
-│   │   ├── engine/               # drying.ts, decision.ts, panjar.ts, readiness.ts, warehouse-score.ts, impact.ts
-│   │   ├── forecast/             # wma.ts, holt-damped.ts, seasonal.ts, backtest.ts
-│   │   └── ai/                   # client.ts, prompts.ts, schemas.ts, guard.ts, fallback.ts
-│   └── middleware.ts             # Proteksi rute per peran dari cookie JWT
-├── tests/                        # Unit test lengkap engine, forecast, & AI guard
-└── docs/                         # PRD_SimpanJual_v2.md/.docx, Audit_Kritik_dan_Spesifikasi_Teknis.md/.docx
+├── backend/                      # Go Modular Monolith Backend
+│   ├── cmd/api/main.go           # HTTP server (3-layer timeouts + graceful shutdown)
+│   ├── cmd/dbtool/main.go        # Migrasi SQL up/down/reset & idempotent database seeder
+│   ├── migrations/               # 001_init.up.sql & 001_init.down.sql (16 tabel + B-Tree Indexes)
+│   └── internal/
+│       ├── platform/             # config, db (pgxpool), cache (TTLCache), httpx, middleware, migrate
+│       ├── modules/              # engine (+ unit test), auth, catalog, stock, lot, warehouse, demand, impact, ai
+│       └── seed/seeder.go        # Seeder idempoten (5 akun demo, 64 minggu harga, gudang SRG, lot, Janji Beli)
+├── mobile/                       # Aplikasi Utama Kategori Mobile (Flutter & Dart)
+│   ├── lib/core/                 # engine.dart, models.dart, api_client.dart (Live + Offline), app_state.dart
+│   ├── lib/widgets/              # price_forecast_chart.dart, warehouse_map_card.dart, server_config_dialog.dart
+│   ├── lib/screens/              # landing, auth (1-Click Demo), petani_shell, stock_decision, role_dashboards
+│   └── test/widget_test.dart     # Pengujian unit fixture PRD 8.7 & skor gudang anti-NaN
+├── web/                          # Aplikasi Pendamping Lintas-Platform (React.js + Vite + Tailwind CSS)
+└── docs/                         # PRD_SimpanJual_v2.md & Audit_Kritik_dan_Spesifikasi_Teknis.md
 ```
 
 ### 10.2 Pemadatan 9 Rute Halaman (Efisiensi Sprint 4 Hari)
@@ -762,9 +747,9 @@ simpanjual/
 | **Urgensi Masalah** | **15%** | 10 bukti data sekunder terdokumentasi (M1–M10) dan kesenjangan pasokan lokal MBG / rendahnya utilisasi SRG |
 | **UI/UX & Accessibility** | **10%** | *Mobile-first*, Bahasa Indonesia sederhana, Toolbar `Aa+ Mode Lapangan` & tombol `Bacakan Rekomendasi`, skor Lighthouse Accessibility ≥ 90 |
 
-### 17.2 Berkas Pengumpulan (Kategori Website — Hal. 10–11 Rulebook)
-- [ ] URL online website karya (aktif 24 jam selama penilaian)
-- [ ] Link repositori GitHub (publik & aktif selama perlombaan)
+### 17.2 Berkas Pengumpulan (Kategori Mobile Application — Rulebook SEVENT X)
+- [ ] File instalasi aplikasi Mobile (`.apk` rilis hasil `flutter build apk --release` + opsional URL demo Web lintas-platform)
+- [ ] Link repositori GitHub monorepo (`mobile/`, `web/`, `backend/`, publik & aktif selama perlombaan)
 - [ ] Dokumen Proposal karya (wajib **template resmi SEVENT X tanpa mengubah struktur apa pun**, maks. 25 halaman tidak termasuk cover, daftar pustaka, dan lampiran)
 - [ ] Surat Pernyataan Orisinalitas (template resmi)
 - [ ] Link YouTube video demonstrasi karya (maks. 5 menit, judul/format: `Nama Tim | SoftDev - SEVENT X National Competition`)

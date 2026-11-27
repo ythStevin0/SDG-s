@@ -1,6 +1,6 @@
 # Audit Kritis PRD v1.1 & Panduan Spesifikasi Teknis — SimpanJual (SEVENT X)
 
-Dokumen ini merangkum seluruh temuan kritis dari evaluasi **PRD SimpanJual v1.1** terhadap **Ruleset SEVENT X (HMSE Telkom University Purwokerto)**, ilmu ekonomi pascapanen, keamanan arsitektur database **Podman PostgreSQL + Drizzle ORM + JWT Session**, keandalan logika AI, serta kesiapan menghadapi sesi Q&A dewan juri. Seluruh perbaikan arsitektur dan rumus dari audit ini telah diintegrasikan ke dalam `PRD_SimpanJual_v2.md` (v2.1).
+Dokumen ini merangkum seluruh temuan kritis dari evaluasi **PRD SimpanJual** terhadap **Ruleset SEVENT X (HMSE Telkom University Purwokerto)** untuk **Kategori Mobile Application (Flutter & Dart)** dengan arsitektur **Cross-Platform Modular Monolith (Flutter Mobile + React.js Web + Go Backend + Podman PostgreSQL 17)**, ilmu ekonomi pascapanen, keandalan logika AI, serta kesiapan menghadapi sesi Q&A dewan juri. Seluruh perbaikan arsitektur dan rumus dari audit ini telah diintegrasikan ke dalam `PRD_SimpanJual_v2.md` (v2.2).
 
 ---
 
@@ -174,8 +174,8 @@ Persiapkan seluruh anggota tim agar mampu menjawab 10 pertanyaan kritis berikut 
 4. **Juri:** *"Bagaimana jika model prediksi harga Anda salah karena tiba-tiba masuk musim panen raya?"*
    - **Jawaban:** "Pertama, kami menghindari Holt linear murni dan memakai *Damped Trend* ($\phi=0,90$) serta komponen indeks musiman untuk data $\ge 52$ minggu agar proyeksi minggu ke-12 tidak menanjak tak wajar. Kedua, aturan rekomendasi kami sangat konservatif: status `TAHAN` penuh hanya keluar jika pada batas bawah pita 80% ($P_{\text{low}}$) petani masih untung; jika hanya untung di titik tengah tetapi rugi di batas bawah, sistem memberi peringatan `TAHAN_BERISIKO`."
 
-5. **Juri:** *"Bagaimana Anda menjamin keamanan data lintas-peran dan mencegah bentrok kapasitas gudang saat dua petani mengajukan sewa bersamaan?"*
-   - **Jawaban:** "Seluruh akses API dan mutasi data dijaga di sisi server menggunakan verifikasi sesi JWT `httpOnly` cookie (`jose`) dengan pemeriksaan kepemilikan peran di setiap endpoint. Untuk mencegah *race condition* dan *double-booking*, keempat alur mutasi lintas-peran (`submitRental`, `respondRental`, `submitSale`, `respondSale`) dibungkus di dalam transaksi database PostgreSQL (`Drizzle db.transaction`) dengan penguncian baris `SELECT ... FOR UPDATE`, yang berjalan identik di kontainer Podman lokal maupun Cloud PostgreSQL."
+5. **Juri:** *"Bagaimana Anda menjamin keamanan data lintas-peran, ketahanan sinyal seluler di desa, dan mencegah bentrok kapasitas gudang saat dua petani mengajukan sewa bersamaan?"*
+   - **Jawaban:** "Kami menggunakan arsitektur **Go Modular Monolith + PostgreSQL 17 (Podman)**. Seluruh endpoint dijaga oleh JWT `HS256` stateless, RBAC server-side, dan Token-Bucket Rate Limiter. Untuk mencegah *race condition* dan *deadlock*, mutasi lintas-peran (`submitRental`, `respondRental`, `submitSale`, `respondSale`) memakai transaksi PostgreSQL `SELECT ... FOR UPDATE` dengan urutan penguncian baris konsisten (*consistent lock ordering*). Selain itu, aplikasi Flutter mengirim header `Idempotency-Key` pada mutasi `POST` sehingga *retry* sinyal 4G yang putus-nyambung di desa tidak pernah memicu *double-booking*."
 
 6. **Juri:** *"Bagaimana jika petani salah menginput atau sengaja menggelembungkan stok/mutu pada data?"*
    - **Jawaban:** "Di ruang lingkup MVP, kami menetapkan asumsi verifikasi fisik akhir tetap dilakukan oleh pengelola gudang atau lembaga penilai mutu saat serah terima, dan itu dicantumkan eksplisit pada disclaimer aplikasi. Namun secara arsitektur, sistem mencegah *double-booking* stok secara matematis melalui pelacakan `reserved_kg` dan `sold_kg`."
@@ -186,8 +186,8 @@ Persiapkan seluruh anggota tim agar mampu menjawab 10 pertanyaan kritis berikut 
 8. **Juri:** *"Apa yang terjadi jika kuota API AI habis atau server AI lambat saat aplikasi dipakai petani di desa?"*
    - **Jawaban:** "Kami memasang *timeout* 8 detik dengan *fallback* deterministik otomatis. Untuk F14, jika AI gagal atau diblokir validator angka, pengguna tetap menerima ringkasan berbasis template yang akurat. Untuk F15, sistem jatuh ke parser regex lokal atau input manual. Seluruh alur inti aplikasi tetap berjalan 100% bahkan ketika `AI_ENABLED=false`."
 
-9. **Juri:** *"Bagaimana petani usia lanjut yang kurang akrab dengan istilah teknis dan akses di bawah terik matahari menggunakan web ini?"*
-   - **Jawaban:** "Kami mendesain satu keputusan besar per layar dengan angka Rupiah langsung dan bahasa sehari-hari. Selain memenuhi kontras WCAG AA, kami menyertakan Toolbar Aksesibilitas Lapangan (`Aa+ Mode Lapangan` untuk memperbesar font dan ketajaman batas) serta tombol `Bacakan Rekomendasi` berbasis *Web Speech API* Bahasa Indonesia."
+9. **Juri:** *"Bagaimana petani usia lanjut yang kurang akrab dengan istilah teknis dan akses di bawah terik matahari menggunakan aplikasi ini?"*
+   - **Jawaban:** "Pada aplikasi **Flutter (Dart)** maupun pendamping **React.js Web**, kami merancang satu keputusan besar per layar dengan angka Rupiah langsung, menyertakan tombol `Aa+ Mode Lapangan` (`TextScaler` 114% & kontras tinggi untuk layar HP di bawah terik matahari), tombol `Bacakan Rekomendasi` berbasis *Text-to-Speech* Bahasa Indonesia (`flutter_tts` `id-ID`), serta **Mode Simulasi Offline Mandiri** otomatis apabila juri atau petani membuka APK saat tidak terjangkau server."
 
 10. **Juri:** *"Apa model bisnis berkelanjutan SimpanJual setelah lomba ini selesai?"*
     - **Jawaban:** "Layanan dasar kalkulasi keputusan dan panjar tandingan gratis untuk petani kecil. Monetisasi berkelanjutan (B2B/B2G) berasal dari *subscription* manajemen kapasitas untuk pengelola gudang swasta/koperasi serta biaya koordinasi pasokan (*sourcing fee* kecil per transaksi selesai) bagi pembeli institusi atau pabrik yang membutuhkan pasokan lokal terkurasi dan stabil."

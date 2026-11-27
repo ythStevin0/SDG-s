@@ -1,21 +1,53 @@
-name: CI
+name: CI — Cross-Platform Modular Monolith
 
 on:
   push:
-    branches: [main]
+    branches: [main, deployment]
   pull_request:
-    branches: [main]
+    branches: [main, deployment]
 
 jobs:
-  check:
+  backend-go:
+    name: Go Modular Monolith (Vet & Unit Test)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+      - run: go vet ./...
+      - run: go test -v ./...
+      - run: go build ./cmd/api
+
+  mobile-flutter:
+    name: Flutter Mobile & Cross-Platform (Analyze & Test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  web-react:
+    name: React.js Web Companion (Typecheck & Build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm install
       - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
+      - run: npm run build
