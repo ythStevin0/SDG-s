@@ -1,4 +1,4 @@
-name: CI — Cross-Platform Modular Monolith
+name: CI Cross-Platform Modular Monolith
 
 on:
   push:
@@ -23,21 +23,30 @@ jobs:
       - run: go build ./cmd/api
 
   mobile-flutter:
-    name: Flutter Mobile & Cross-Platform (Analyze & Test)
+    name: Flutter Mobile & Cross-Platform (Analyze, Test & APK)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.7'
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
+      - run: flutter analyze --fatal-infos --fatal-warnings
       - run: flutter test
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simpanjual-release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
 
   web-react:
     name: React.js Web Companion (Typecheck & Build)
