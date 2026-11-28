@@ -11,7 +11,7 @@ import (
 var (
 	phoneRegex      = regexp.MustCompile(`(?:\+62|62|0)8[1-9][0-9\-.\s]{6,13}`)
 	emailRegex      = regexp.MustCompile(`[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`)
-	unitNumberRegex = regexp.MustCompile(`(?i)(?:Rp\.?\s*([\d.,]+)\s*(juta|jt|ribu|rb)?)|(?:([\d.,]+)\s*(%|persen|kg|ton|kuintal|kw|minggu|hari|bulan)\b)`)
+	unitNumberRegex = regexp.MustCompile(`(?i)(?:Rp\.?\s*([\d.,]+)\s*(juta|jt|ribu|rb)?)|(?:([\d.,]+)\s*(%|(?:persen|kg|ton|kuintal|kw|minggu|hari|bulan)\b))`)
 	thousandDotRe   = regexp.MustCompile(`^\d{1,3}(\.\d{3})+$`)
 	priceExtractRe  = regexp.MustCompile(`(?i)Rp\.?\s*([\d.,]+)\s*(rb|ribu|jt|juta)?\s*(?:/\s*kg|per\s*kg)?`)
 	qtyExtractRe    = regexp.MustCompile(`(?i)([\d.,]+)\s*(kg|ton|kuintal|kw|karung|sak)\b`)

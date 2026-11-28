@@ -1,11 +1,11 @@
 {
-    "name": "simpanjual_mobile",
-    "short_name": "simpanjual_mobile",
+    "name": "SimpanJual: Keputusan Simpan Gudang & Jual Pascapanen",
+    "short_name": "SimpanJual",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FAF7F0",
+    "theme_color": "#193226",
+    "description": "Mesin keputusan tahan gudang SRG atau jual panen segera untuk petani padi dan jagung.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

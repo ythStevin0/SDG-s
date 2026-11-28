@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/app_state.dart';
 import '../core/formatters.dart';
 import '../core/models.dart';
+import '../core/theme.dart';
 import '../widgets/price_forecast_chart.dart';
 
 class StockDecisionScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class StockDecisionScreen extends StatefulWidget {
 
 class _StockDecisionScreenState extends State<StockDecisionScreen> {
   bool _loading = true;
+  String? _error;
   int _latestPrice = 5000;
   List<PricePoint> _series = const [];
   ForecastOutput? _forecast;
@@ -31,14 +33,12 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
   Map<String, dynamic>? _aiExplanation;
   bool _loadingAi = false;
 
-  // Asumsi kustom (F4)
   double _tarifSewa = 2.5;
   final double _biayaAngkut = 20;
   final double _biayaTetap = 100000;
   double _rasioPinjaman = 0.70;
-  double _bungaTahunan = 0.06; // Default S-SRG 6%
+  double _bungaTahunan = 0.06;
 
-  // Panjar Tandingan & Ekstrak WA (F5 & F15)
   String _panjarMode = 'per_kg';
   final _panjarCtrl = TextEditingController(text: '3800');
   final _waTextCtrl = TextEditingController();
@@ -49,8 +49,18 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
     _evaluate();
   }
 
+  @override
+  void dispose() {
+    _panjarCtrl.dispose();
+    _waTextCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _evaluate() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final pr = await widget.appState.api.fetchPrices(widget.stock.commodityKode);
       final parsedPanjar = double.tryParse(_panjarCtrl.text.replaceAll('.', '')) ?? 0;
@@ -66,12 +76,9 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
         if (_panjarMode == 'borongan' && parsedPanjar > 0) 'totalBoronganRp': parsedPanjar,
       });
 
-      DecisionResult dec;
-      if (res['decision'] is DecisionResult) {
-        dec = res['decision'] as DecisionResult;
-      } else {
-        dec = DecisionResult.fromJson((res['decision'] as Map).cast<String, dynamic>());
-      }
+      final dec = res['decision'] is DecisionResult
+          ? res['decision'] as DecisionResult
+          : DecisionResult.fromJson((res['decision'] as Map).cast<String, dynamic>());
 
       PanjarResult? pj;
       if (res['panjar'] != null) {
@@ -80,12 +87,9 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
             : PanjarResult.fromJson((res['panjar'] as Map).cast<String, dynamic>());
       }
 
-      ReadinessResult rd;
-      if (res['readiness'] is ReadinessResult) {
-        rd = res['readiness'] as ReadinessResult;
-      } else {
-        rd = ReadinessResult.fromJson((res['readiness'] as Map).cast<String, dynamic>());
-      }
+      final rd = res['readiness'] is ReadinessResult
+          ? res['readiness'] as ReadinessResult
+          : ReadinessResult.fromJson((res['readiness'] as Map).cast<String, dynamic>());
 
       if (mounted) {
         setState(() {
@@ -101,8 +105,10 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menghitung: $e')));
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
       }
     }
   }
@@ -150,31 +156,31 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Transparansi Rumus Ekonomi Pascapanen'),
+        title: const Text('Rincian Rumus Ekonomi Pascapanen'),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('1. Konversi Bobot Kering Siap Simpan:\n'
-                  'Q_siap = Q × (100 - KA_aktual) / (100 - KA_ambang)\n'
-                  '→ ${formatKg(dec.qtySiap)} (Susut pengeringan: ${formatKg(dec.susutPengeringanKg)})'),
+                  'Q_siap = Q x (100 - KA_aktual) / (100 - KA_ambang)\n'
+                  'Hasil: ${formatKg(dec.qtySiap)} (Susut jemur: ${formatKg(dec.susutPengeringanKg)})'),
               const SizedBox(height: 10),
-              Text('2. Biaya Simpan Total (${dec.best.days} hari):\n'
-                  '• Pengeringan: ${formatRupiah(dec.best.biayaPengeringan)}\n'
-                  '• Sewa Gudang: ${formatRupiah(dec.best.biayaSewa)}\n'
-                  '• Angkut: ${formatRupiah(dec.best.biayaAngkut)}\n'
-                  '• Bunga Pinjaman: ${formatRupiah(dec.best.bungaPinjaman)}\n'
-                  '• Biaya Tetap: ${formatRupiah(dec.best.biayaTetap)}\n'
-                  '= Total K(t*): ${formatRupiah(dec.best.totalBiayaSimpan)}'),
+              Text('2. Total Biaya Simpan (${dec.best.days} hari):\n'
+                  '- Pengeringan: ${formatRupiah(dec.best.biayaPengeringan)}\n'
+                  '- Sewa Gudang: ${formatRupiah(dec.best.biayaSewa)}\n'
+                  '- Angkut: ${formatRupiah(dec.best.biayaAngkut)}\n'
+                  '- Bunga Pinjaman: ${formatRupiah(dec.best.bungaPinjaman)}\n'
+                  '- Biaya Tetap: ${formatRupiah(dec.best.biayaTetap)}\n'
+                  'Total K(t*): ${formatRupiah(dec.best.totalBiayaSimpan)}'),
               const SizedBox(height: 10),
-              Text('3. Titik Impas Harga (Math.ceil):\n'
-                  'P_be = ⌈ (Jual_Segera + K(t*)) / Q_eff ⌉ = ${formatRupiah(dec.best.titikImpasPerKg)}/kg'),
+              Text('3. Titik Impas Harga (pembulatan ke atas):\n'
+                  'P_be = ceil((Jual_Segera + K(t*)) / Q_eff) = ${formatRupiah(dec.best.titikImpasPerKg)}/kg'),
             ],
           ),
         ),
         actions: [
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Mengerti')),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup Rincian')),
         ],
       ),
     );
@@ -182,136 +188,194 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = SimpanJualPalette.of(context);
     final st = widget.stock;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Keputusan: ${st.commodityNama}'),
+        title: Text('Keputusan: ${st.commodityNama}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
         actions: [
           IconButton(
-            tooltip: 'Mode Lapangan Aa+',
+            tooltip: widget.appState.darkMode ? 'Mode Terang' : 'Mode Rimbun Gelap',
+            onPressed: widget.appState.toggleDarkMode,
+            icon: Icon(
+              widget.appState.darkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Perbesar huruf Mode Lapangan Aa+',
             onPressed: widget.appState.toggleFieldMode,
-            icon: const Icon(Icons.text_increase_rounded),
+            icon: const Icon(Icons.format_size_rounded),
           ),
         ],
       ),
-      body: _loading || _decision == null
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 920),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildHeroDecisionCard(_decision!),
-                      const SizedBox(height: 14),
-                      if (_aiExplanation != null) _buildAiCard(_aiExplanation!),
-                      if (_readiness != null) ...[
-                        const SizedBox(height: 14),
-                        _buildReadinessCard(_readiness!, _decision!),
-                      ],
-                      const SizedBox(height: 14),
-                      if (_forecast != null)
-                        Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+      body: _loading
+          ? const Padding(
+              padding: EdgeInsets.all(20),
+              child: StatePanel(
+                icon: Icons.hourglass_top_rounded,
+                title: 'Menghitung proyeksi harga dan titik impas',
+                message: 'Mengevaluasi konversi kadar air, biaya simpan, dan deret waktu historis.',
+                isLoading: true,
+              ),
+            )
+          : _error != null || _decision == null
+              ? Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: StatePanel(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Gagal memuat perhitungan stok',
+                    message: _error ?? 'Data keputusan tidak tersedia.',
+                    actionLabel: 'Coba Hitung Ulang',
+                    onAction: _evaluate,
+                    isError: true,
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(18),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1040),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildBotanicalDecisionStage(p, _decision!),
+                          const SizedBox(height: 16),
+                          if (_aiExplanation != null) ...[
+                            _buildPlainLanguageCard(p, _aiExplanation!),
+                            const SizedBox(height: 16),
+                          ],
+                          ResponsiveThreeStageGrid(
+                            maxColumns: 2,
+                            spacing: 16,
+                            children: [
+                              if (_readiness != null) _buildReadinessCard(p, _readiness!, _decision!),
+                              _buildAssumptionsCard(p),
+                            ],
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Tren Harga & Proyeksi Statistik (F3)',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 10),
-                                PriceForecastChart(series: _series, forecast: _forecast!),
-                              ],
+                          const SizedBox(height: 16),
+                          if (_forecast != null)
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(18),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Apakah proyeksi harga 4 hingga 12 minggu melampaui titik impas ${formatRupiah(_decision!.best.titikImpasPerKg)}/kg?',
+                                      style: TextStyle(
+                                        fontSize: 16.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: p.ink,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    PriceForecastChart(
+                                      series: _series,
+                                      forecast: _forecast!,
+                                      breakEvenPerKg: _decision!.best.titikImpasPerKg,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      const SizedBox(height: 14),
-                      _buildAssumptionsExpansion(),
-                      const SizedBox(height: 14),
-                      _buildPanjarCard(),
-                    ],
+                          const SizedBox(height: 16),
+                          _buildPanjarCard(p),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
     );
   }
 
-  Widget _buildHeroDecisionCard(DecisionResult dec) {
-    final isTahan = dec.recommendation == 'TAHAN';
-    final isRisk = dec.recommendation == 'TAHAN_BERISIKO';
-    final bg = isTahan
-        ? const Color(0xFF065F46)
-        : isRisk
-            ? const Color(0xFF92400E)
-            : const Color(0xFF991B1B);
+  Widget _buildBotanicalDecisionStage(SimpanJualPalette p, DecisionResult dec) {
+    final recLabel = dec.recommendation == 'JUAL'
+        ? 'JUAL SEKARANG'
+        : '${formatStatusLabel(dec.recommendation)} ${dec.bestHorizonWeeks} MINGGU';
 
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [p.stageLeft, p.stageMid],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(32),
+          topRight: Radius.circular(10),
+          bottomLeft: Radius.circular(10),
+          bottomRight: Radius.circular(18),
+        ),
+        border: Border.all(color: p.harvestGold, width: 1.3),
       ),
+      padding: const EdgeInsets.all(22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Stok ${formatKg(widget.stock.qtyKg)} · KA ${widget.stock.kadarAir}% · ${widget.stock.kabupaten}',
-            style: const TextStyle(color: Colors.white70, fontSize: 12.5, fontWeight: FontWeight.w600),
+            'STOK ${formatKg(widget.stock.qtyKg).toUpperCase()} • KA ${widget.stock.kadarAir}% • ${widget.stock.kabupaten.toUpperCase()}',
+            style: TextStyle(
+              color: p.goldTextOnDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            recLabel,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              height: 1.05,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Selisih bersih: ${formatRupiah(dec.best.selisihRp, showPlus: true)} (${dec.best.selisihPct}%) • Titik impas: ${formatRupiah(dec.best.titikImpasPerKg)}/kg',
+            style: TextStyle(
+              color: p.goldTextOnDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
           const SizedBox(height: 6),
           Text(
-            'REKOMENDASI: ${formatStatusLabel(dec.recommendation)}${dec.recommendation != "JUAL" ? " (${dec.bestHorizonWeeks} MINGGU)" : ""}',
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900),
+            dec.summarySentence,
+            style: const TextStyle(color: Color(0xFFEAF4EC), fontSize: 14, height: 1.4),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Selisih Pendapatan: ${formatRupiah(dec.best.selisihRp, showPlus: true)} (${dec.best.selisihPct}%)',
-            style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 17, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Titik Impas Harga: ${formatRupiah(dec.best.titikImpasPerKg)}/kg · Jual Segera: ${formatRupiah(dec.pendapatanJualSegera)}',
-            style: const TextStyle(color: Colors.white, fontSize: 13.5),
-          ),
-          const SizedBox(height: 8),
-          Text(dec.summarySentence, style: const TextStyle(color: Colors.white, fontSize: 13.5)),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 10,
+            runSpacing: 10,
             children: [
-              FilledButton.tonalIcon(
+              SplitGoldCtaButton(
+                label: widget.appState.isSpeaking ? 'Hentikan Suara' : 'Bacakan Rekomendasi',
                 onPressed: () => widget.appState.speakText(
-                  'Rekomendasi ${dec.recommendation.replaceAll("_", " ")}. ${dec.summarySentence} Perkiraan selisih ${formatIntId(dec.best.selisihRp.abs())} rupiah.',
+                  'Rekomendasi $recLabel. ${dec.summarySentence} Perkiraan selisih ${formatIntId(dec.best.selisihRp.abs())} rupiah.',
                 ),
-                icon: Icon(widget.appState.isSpeaking ? Icons.stop_rounded : Icons.volume_up_rounded),
-                label: Text(widget.appState.isSpeaking ? 'Hentikan Suara' : 'Bacakan Rekomendasi'),
               ),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white54),
+                  side: const BorderSide(color: Colors.white70),
                 ),
                 onPressed: () => _showFormulaDialog(dec),
-                icon: const Icon(Icons.info_outline_rounded, size: 18),
-                label: const Text('Rumus & Rincian Biaya'),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('Lihat Rumus & Biaya'),
               ),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: bg,
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: p.goldTextOnDark,
+                  side: BorderSide(color: p.harvestGold),
                 ),
                 onPressed: _loadingAi ? null : _askAiExplanation,
-                icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                label: Text(_loadingAi ? 'Memproses...' : 'Jelaskan Bahasa Sederhana'),
+                icon: const Icon(Icons.record_voice_over_outlined, size: 18),
+                label: Text(_loadingAi ? 'Menyusun kalimat...' : 'Penjelasan Bahasa Petani'),
               ),
             ],
           ),
@@ -320,173 +384,171 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
     );
   }
 
-  Widget _buildAiCard(Map<String, dynamic> exp) {
+  Widget _buildPlainLanguageCard(SimpanJualPalette p, Map<String, dynamic> exp) {
     final alasan = (exp['alasan'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList();
     final langkah =
         (exp['langkah_berikut'] as List<dynamic>? ?? const []).map((e) => e.toString()).toList();
     return Card(
-      elevation: 0,
-      color: const Color(0xFFF0FDFA),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFF99F6E4)),
-      ),
+      color: p.surfaceAlt,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            StampBadge(
+              label: exp['fallback_used'] == true
+                  ? 'RINGKASAN PENYULUH (TERVERIFIKASI)'
+                  : 'PENJELASAN TERVALIDASI SATUAN',
+              tone: StampTone.ok,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              (exp['ringkasan'] ?? '').toString(),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: p.ink),
+            ),
+            const SizedBox(height: 8),
+            ...alasan.map((a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('- $a', style: TextStyle(fontSize: 13.5, color: p.inkMuted)),
+                )),
+            if (langkah.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('Langkah tindak lanjut:',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: p.ink)),
+              ...langkah.map((l) => Text('- $l', style: TextStyle(fontSize: 13.5, color: p.ink))),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadinessCard(SimpanJualPalette p, ReadinessResult rd, DecisionResult dec) {
+    final ok = rd.status == 'LAYAK';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.auto_awesome, color: Color(0xFF0F766E), size: 18),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    exp['fallback_used'] == true
-                        ? 'Penjelasan Bahasa Petani (Template Terverifikasi)'
-                        : 'Penjelasan AI Terkendali (Lolos Validator Satuan)',
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF115E59)),
-                  ),
+                Text('Kesiapan Mutu Simpan',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: p.ink)),
+                StampBadge(
+                  label: formatStatusLabel(rd.status),
+                  tone: ok ? StampTone.ok : StampTone.warn,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text((exp['ringkasan'] ?? '').toString(),
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            ...alasan.map((a) => Text('• $a', style: const TextStyle(fontSize: 13))),
-            if (langkah.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              const Text('Langkah Berikut:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              ...langkah.map((l) => Text('→ $l', style: const TextStyle(fontSize: 13))),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReadinessCard(ReadinessResult rd, DecisionResult dec) {
-    final ok = rd.status == 'LAYAK';
-    return Card(
-      elevation: 0,
-      color: ok ? const Color(0xFFF0FDF4) : const Color(0xFFFFFBEB),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: ok ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Cek Kesiapan Mutu Simpan (F6): ${rd.status.replaceAll("_", " ")}',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
-            if (dec.perluPengeringan)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Konversi KA: ${formatKg(widget.stock.qtyKg)} basah → ${formatKg(dec.qtySiap)} kering siap simpan (Ongkos jemur ${formatRupiah(dec.best.biayaPengeringan)})',
-                  style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
-                ),
+            const SizedBox(height: 10),
+            if (dec.perluPengeringan) ...[
+              LedgerRow(
+                label: 'Bobot kering sesudah jemur',
+                value: '${formatKg(dec.qtySiap)} (-${formatKg(dec.susutPengeringanKg)})',
+                emphasize: true,
               ),
-            const SizedBox(height: 6),
-            ...rd.reasons.map((r) => Text('• $r', style: const TextStyle(fontSize: 13))),
-            ...rd.actions.map((a) => Text('✓ Aksi: $a',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+              LedgerRow(
+                label: 'Estimasi ongkos penjemuran',
+                value: formatRupiah(dec.best.biayaPengeringan),
+              ),
+              const Divider(height: 16),
+            ],
+            ...rd.reasons.map((r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('- $r', style: TextStyle(fontSize: 13, color: p.inkMuted)),
+                )),
+            const SizedBox(height: 4),
+            ...rd.actions.map((a) => Text(
+                  'Tindakan: $a',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: p.ink),
+                )),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAssumptionsExpansion() {
+  Widget _buildAssumptionsCard(SimpanJualPalette p) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFCBD5E1)),
-      ),
-      child: ExpansionTile(
-        title: const Text('Ubah Asumsi Biaya & Bunga S-SRG (F4)',
-            style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(
-          'Sewa Rp$_tarifSewa/kg/hr · Bunga ${(_bungaTahunan * 100).toStringAsFixed(0)}%/thn · Pinjaman ${(_rasioPinjaman * 100).toStringAsFixed(0)}%',
-          style: const TextStyle(fontSize: 12.5),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Asumsi Biaya & Skema Bunga Resi Gudang',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: p.ink)),
+            const SizedBox(height: 10),
+            SegmentedButton<double>(
+              segments: const [
+                ButtonSegment(value: 0.06, label: Text('Subsidi S-SRG 6%')),
+                ButtonSegment(value: 0.12, label: Text('Komersial 12%')),
+              ],
+              selected: {_bungaTahunan},
+              onSelectionChanged: (s) {
+                setState(() => _bungaTahunan = s.first);
+                _evaluate();
+              },
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('Ambil dana talangan SRG (70% nilai stok)',
+                  style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: p.ink)),
+              value: _rasioPinjaman > 0,
+              onChanged: (v) {
+                setState(() => _rasioPinjaman = v ? 0.70 : 0.0);
+                _evaluate();
+              },
+            ),
+            LedgerRow(
+              label: 'Tarif sewa gudang',
+              value: 'Rp${_tarifSewa.toStringAsFixed(1)}/kg/hari',
+              emphasize: true,
+            ),
+            Slider(
+              value: _tarifSewa,
+              min: 1.0,
+              max: 8.0,
+              divisions: 14,
+              onChanged: (v) => setState(() => _tarifSewa = v),
+              onChangeEnd: (_) => _evaluate(),
+            ),
+          ],
         ),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: [
-          SegmentedButton<double>(
-            segments: const [
-              ButtonSegment(value: 0.06, label: Text('Subsidi S-SRG 6%')),
-              ButtonSegment(value: 0.12, label: Text('Komersial 12%')),
-            ],
-            selected: {_bungaTahunan},
-            onSelectionChanged: (s) {
-              setState(() => _bungaTahunan = s.first);
-              _evaluate();
-            },
-          ),
-          const SizedBox(height: 10),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Ambil Pembiayaan Resi Gudang (70% Nilai Stok)'),
-            value: _rasioPinjaman > 0,
-            onChanged: (v) {
-              setState(() => _rasioPinjaman = v ? 0.70 : 0.0);
-              _evaluate();
-            },
-          ),
-          Text('Tarif Sewa Gudang: Rp${_tarifSewa.toStringAsFixed(1)}/kg/hari'),
-          Slider(
-            value: _tarifSewa,
-            min: 1.0,
-            max: 8.0,
-            divisions: 14,
-            onChanged: (v) => setState(() => _tarifSewa = v),
-            onChangeEnd: (_) => _evaluate(),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _buildPanjarCard() {
+  Widget _buildPanjarCard(SimpanJualPalette p) {
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFCBD5E1)),
-      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Panjar Tandingan vs Tengkulak & Ekstrak WA (F5 & F15)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text('Adu Tawaran Panjar Tengkulak & Ekstrak Pesan WhatsApp',
+                style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: p.ink)),
             const SizedBox(height: 10),
             TextField(
               controller: _waTextCtrl,
               maxLines: 2,
               decoration: InputDecoration(
-                labelText: 'Tempel pesan WhatsApp tengkulak (opsional, F15)',
-                hintText: 'Contoh: Pak Slamet jagungnya saya panjar Rp3.700/kg 5 ton ya',
-                border: const OutlineInputBorder(),
+                labelText: 'Tempel teks tawaran WhatsApp tengkulak (opsional)',
+                hintText: 'Contoh: Pak Slamet jagungnya saya panjar Rp3.700/kg 5 ton',
                 suffixIcon: IconButton(
-                  tooltip: 'Ekstrak Otomatis',
+                  tooltip: 'Baca nominal otomatis dari pesan',
                   onPressed: _extractWa,
-                  icon: const Icon(Icons.content_paste_go_rounded),
+                  icon: const Icon(Icons.input_rounded),
                 ),
               ),
             ),
             const SizedBox(height: 12),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'per_kg', label: Text('Harga Per Kg (Rp/kg)')),
-                ButtonSegment(value: 'borongan', label: Text('Tebasan Borongan (Rp Total)')),
+                ButtonSegment(value: 'per_kg', label: Text('Harga Per Kg')),
+                ButtonSegment(value: 'borongan', label: Text('Tebasan Total (Rp)')),
               ],
               selected: {_panjarMode},
               onSelectionChanged: (s) => setState(() {
@@ -494,7 +556,7 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
                 _panjarCtrl.text = _panjarMode == 'borongan' ? '18500000' : '3800';
               }),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -503,15 +565,13 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: _panjarMode == 'borongan'
-                          ? 'Total Tawaran Borongan (Rp)'
-                          : 'Harga Panjar Tengkulak (Rp/kg)',
-                      border: const OutlineInputBorder(),
+                          ? 'Total Uang Tebasan Borongan (Rp)'
+                          : 'Harga Panjar per Kg (Rp/kg)',
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 FilledButton(
-                  style: FilledButton.styleFrom(minimumSize: const Size(110, 52)),
                   onPressed: _evaluate,
                   child: const Text('Bandingkan'),
                 ),
@@ -522,28 +582,36 @@ class _StockDecisionScreenState extends State<StockDecisionScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  color: p.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: p.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Potongan Tengkulak terhadap Pasar: ${_panjar!.diskonTerhadapPasarPct}% lebih murah',
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFB91C1C)),
+                    LedgerRow(
+                      label: 'Potongan tengkulak di bawah harga pasar',
+                      value: '${_panjar!.diskonTerhadapPasarPct}%',
+                      emphasize: true,
+                      valueColor: p.dangerInk,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '• Uang Tunai Hari Ini: Panjar ${formatRupiahCompact(_panjar!.tunaiHariIniPanjarRp)} vs Plafon SRG ${formatRupiahCompact(_panjar!.tunaiHariIniSrgRp)}',
+                    LedgerRow(
+                      label: 'Tunai diterima hari ini (Panjar vs Plafon SRG)',
+                      value:
+                          '${formatRupiahCompact(_panjar!.tunaiHariIniPanjarRp)} vs ${formatRupiahCompact(_panjar!.tunaiHariIniSrgRp)}',
                     ),
-                    Text(
-                      '• Hasil Bersih Akhir: Panjar ${formatRupiahCompact(_panjar!.pendapatanPanjarRp)} vs Tahan ${formatRupiahCompact(_panjar!.pendapatanTahanRp)}',
+                    LedgerRow(
+                      label: 'Hasil bersih akhir (Panjar vs Tahan Gudang)',
+                      value:
+                          '${formatRupiahCompact(_panjar!.pendapatanPanjarRp)} vs ${formatRupiahCompact(_panjar!.pendapatanTahanRp)}',
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Selisih diselamatkan jika tidak ambil panjar: ${formatRupiah(_panjar!.selisihTerhadapTahanRp, showPlus: true)} (${_panjar!.selisihTerhadapTahanPct}%)',
-                      style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF047857)),
+                    const Divider(height: 14),
+                    LedgerRow(
+                      label: 'Pendapatan petani yang diselamatkan',
+                      value:
+                          '${formatRupiah(_panjar!.selisihTerhadapTahanRp, showPlus: true)} (${_panjar!.selisihTerhadapTahanPct}%)',
+                      emphasize: true,
+                      valueColor: p.okInk,
                     ),
                   ],
                 ),

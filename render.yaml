@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: simpanjual-api
+    runtime: docker
+    dockerfilePath: ./backend/Containerfile
+    dockerContext: ./backend
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: simpanjual-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: AI_ENABLED
+        value: "false"
+
+databases:
+  - name: simpanjual-db
+    plan: free
+    databaseName: simpanjual
+    user: simpanjual

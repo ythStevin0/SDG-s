@@ -15,16 +15,19 @@ class ApiClient {
 
   ApiClient({required this.baseUrl, this.token});
 
+  // Dukungan URL backend publik via --dart-define=API_BASE_URL serta jembatan 10.0.2.2 untuk emulator.
   static String defaultBaseUrl() {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) {
+      return envUrl;
+    }
     if (kIsWeb) return 'http://localhost:8080';
     if (defaultTargetPlatform == TargetPlatform.android) {
-      // Android Emulator loopback ke host Go Modular Monolith
       return 'http://10.0.2.2:8080';
     }
     return 'http://127.0.0.1:8080';
   }
 
-  // In-memory stateful offline fallback store bila juri membuka APK tanpa server lokal
   final OfflineDemoStore _offline = OfflineDemoStore();
 
   String _idemKey() =>
@@ -99,8 +102,6 @@ class ApiClient {
       throw Exception(decoded['error'] ?? 'Gagal menghapus');
     }
   }
-
-  // ==================== HIGH-LEVEL OPERATIONS ====================
 
   Future<Map<String, dynamic>> checkHealth() async {
     if (offlineFallbackMode) {
@@ -497,7 +498,7 @@ class ApiClient {
   }
 }
 
-// ==================== OFFLINE DEMO STORE (UNTUK APK MANDIRI TANPA SERVER) ====================
+// Penyimpanan status lokal saat APK dijalankan mandiri tanpa koneksi server.
 class OfflineDemoStore {
   final List<UserProfile> users = [
     const UserProfile(

@@ -10,7 +10,8 @@ class AppState extends ChangeNotifier {
   final FlutterTts _tts = FlutterTts();
 
   UserProfile? currentUser;
-  bool fieldMode = false; // Aa+ Mode Lapangan (skala font 114% + kontras tinggi)
+  bool fieldMode = false;
+  bool darkMode = false;
   bool isSpeaking = false;
   bool initialized = false;
 
@@ -27,6 +28,7 @@ class AppState extends ChangeNotifier {
         api.baseUrl = savedUrl;
       }
       fieldMode = prefs.getBool('field_mode') ?? false;
+      darkMode = prefs.getBool('dark_mode') ?? false;
       final savedToken = prefs.getString('session_token');
       if (savedToken != null && savedToken.isNotEmpty && !savedToken.startsWith('offline-')) {
         api.token = savedToken;
@@ -59,6 +61,15 @@ class AppState extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('field_mode', fieldMode);
+    } catch (_) {}
+  }
+
+  Future<void> toggleDarkMode() async {
+    darkMode = !darkMode;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('dark_mode', darkMode);
     } catch (_) {}
   }
 

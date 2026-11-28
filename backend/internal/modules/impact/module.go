@@ -92,8 +92,8 @@ func (m *Module) handleImpactSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.JSON(w, http.StatusOK, map[string]any{
-		"sdgFocus":             "SDG 8 — Decent Work and Economic Growth",
-		"coBenefits":           []string{"SDG 2 — Zero Hunger", "SDG 12 — Responsible Consumption and Production"},
+		"sdgFocus":             "SDG 8: Pekerjaan Layak dan Pertumbuhan Ekonomi",
+		"coBenefits":           []string{"SDG 2: Tanpa Kelaparan", "SDG 12: Konsumsi dan Produksi Bertanggung Jawab"},
 		"tambahanPendapatanRp": int(tambahanPendapatan),
 		"stokTerserapKg":       stokTerserap,
 		"susutDicegahKg":       susutDicegah,

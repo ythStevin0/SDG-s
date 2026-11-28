@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_state.dart';
 import '../core/engine.dart';
+import '../core/theme.dart';
 import '../widgets/server_config_dialog.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -32,40 +33,43 @@ class _AuthScreenState extends State<AuthScreen> {
   static const _demoPersonas = [
     (
       preset: 'petani',
-      title: 'Pak Slamet — Petani',
+      title: 'Pak Slamet (Petani)',
       subtitle: 'Stok jagung 5 ton & gabah GKP basah 4 ton (KA 22%)',
       icon: Icons.agriculture_rounded,
-      color: Color(0xFF047857),
     ),
     (
       preset: 'poktan',
-      title: 'Bu Rini — Ketua Poktan',
-      subtitle: 'Poktan Tani Jaya · Kode gabung TANIJAYA · Lot Kolektif 6/10 ton',
+      title: 'Bu Rini (Ketua Poktan)',
+      subtitle: 'Poktan Tani Jaya, kode gabung TANIJAYA, Lot Kolektif 6 dari 10 ton',
       icon: Icons.groups_rounded,
-      color: Color(0xFF0F766E),
     ),
     (
       preset: 'gudang',
-      title: 'Pak Joko — Pengelola Gudang SRG',
-      subtitle: 'Kelola 4 gudang SRG & koperasi · Terima/tolak sewa atomik',
+      title: 'Pak Joko (Pengelola Gudang SRG)',
+      subtitle: 'Kelola 4 gudang SRG & koperasi daerah serta persetujuan sewa atomik',
       icon: Icons.warehouse_rounded,
-      color: Color(0xFF1D4ED8),
     ),
     (
       preset: 'pembeli',
-      title: 'Koperasi & SPPG Mitra — Pembeli',
-      subtitle: 'Pasang Janji Beli & serap pasokan petani lokal',
+      title: 'Koperasi & SPPG Mitra (Pembeli)',
+      subtitle: 'Pasang kuota Janji Beli dan proses penawaran masuk petani',
       icon: Icons.storefront_rounded,
-      color: Color(0xFFB45309),
     ),
     (
       preset: 'admin',
       title: 'Admin SimpanJual',
-      subtitle: 'Konfigurasi parameter JSONB komoditas & observabilitas server',
-      icon: Icons.admin_panel_settings_rounded,
-      color: Color(0xFF4338CA),
+      subtitle: 'Atur parameter komoditas JSONB dan pantau status pool server',
+      icon: Icons.tune_rounded,
     ),
   ];
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _namaCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _runDemo(String preset) async {
     setState(() {
@@ -82,6 +86,10 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submitManual() async {
+    if (_emailCtrl.text.trim().isEmpty || _passCtrl.text.isEmpty) {
+      setState(() => _error = 'Mohon isi alamat email dan kata sandi terlebih dahulu.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -107,207 +115,240 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = SimpanJualPalette.of(context);
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
+          tooltip: 'Kembali ke panggung utama',
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: widget.onBackToLanding,
         ),
-        title: const Text('Masuk ke SimpanJual'),
+        title: const SimpanJualBrand(lightOnDark: true, compact: true),
         actions: [
+          IconButton(
+            tooltip: widget.appState.darkMode ? 'Mode Terang' : 'Mode Rimbun Gelap',
+            onPressed: widget.appState.toggleDarkMode,
+            icon: Icon(
+              widget.appState.darkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            ),
+          ),
           TextButton.icon(
+            style: TextButton.styleFrom(foregroundColor: p.goldTextOnDark),
             onPressed: () => showServerConfigDialog(context, widget.appState),
             icon: const Icon(Icons.dns_outlined, size: 18),
-            label: Text(widget.appState.api.offlineFallbackMode ? 'Offline' : 'Live API'),
+            label: Text(widget.appState.api.offlineFallbackMode ? 'Offline' : 'Live Go API'),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
+            constraints: const BoxConstraints(maxWidth: 960),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_error != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFCA5A5)),
-                    ),
-                    child: Text(_error!, style: const TextStyle(color: Color(0xFF991B1B))),
+                if (_error != null) ...[
+                  StatePanel(
+                    icon: Icons.error_outline_rounded,
+                    title: 'Gagal memproses autentikasi',
+                    message: _error!,
+                    isError: true,
                   ),
-
-                // Panel 1-Click Demo Login untuk Dewan Juri (F1)
-                Card(
-                  elevation: 0,
-                  color: const Color(0xFFF0FDF4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    side: const BorderSide(color: Color(0xFF86EFAC)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
+                  const SizedBox(height: 16),
+                ],
+                ResponsiveThreeStageGrid(
+                  maxColumns: 2,
+                  spacing: 20,
+                  children: [
+                    // Kolom 1: Masuk Cepat 5 Akun Demo
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.bolt_rounded, color: Color(0xFF047857)),
-                            SizedBox(width: 6),
-                            Text(
-                              '1-Click Demo Login (Akses Cepat Dewan Juri)',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Ketuk salah satu peran di bawah untuk langsung menguji alur penuh lintas aktor (sandi manual: demo12345).',
-                          style: TextStyle(fontSize: 12.5, color: Color(0xFF166534)),
-                        ),
-                        const SizedBox(height: 12),
-                        ..._demoPersonas.map(
-                          (p) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(12),
-                              onTap: _busy ? null : () => _runDemo(p.preset),
-                              child: Ink(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Masuk Cepat 5 Peran Demo',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: p.ink,
+                                    ),
+                                  ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundColor: p.color.withValues(alpha: 0.12),
-                                      child: Icon(p.icon, color: p.color),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(p.title,
-                                              style: const TextStyle(fontWeight: FontWeight.w800)),
-                                          Text(p.subtitle,
-                                              style: const TextStyle(
-                                                  fontSize: 12, color: Color(0xFF475569))),
-                                        ],
+                                const StampBadge(label: '1 KLIK', tone: StampTone.ok),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Pilih salah satu akun simulasi di bawah untuk menguji alur penuh lintas peran (sandi manual bila diketik: demo12345).',
+                              style: TextStyle(fontSize: 13, color: p.inkMuted, height: 1.4),
+                            ),
+                            const SizedBox(height: 14),
+                            ..._demoPersonas.map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(10),
+                                  onTap: _busy ? null : () => _runDemo(item.preset),
+                                  child: Ink(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: p.surfaceAlt,
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(16),
+                                        topRight: Radius.circular(6),
+                                        bottomLeft: Radius.circular(6),
+                                        bottomRight: Radius.circular(10),
                                       ),
+                                      border: Border.all(color: p.border),
                                     ),
-                                    const Icon(Icons.chevron_right_rounded),
-                                  ],
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: p.frameBg,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(item.icon, color: p.harvestGold, size: 20),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.title,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: p.ink,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                item.subtitle,
+                                                style: TextStyle(fontSize: 12, color: p.inkMuted),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(Icons.arrow_forward_rounded, color: p.ink, size: 18),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
-                // Form Login / Registrasi Manual
-                Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    side: const BorderSide(color: Color(0xFFCBD5E1)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SegmentedButton<bool>(
-                          segments: const [
-                            ButtonSegment(value: false, label: Text('Masuk Email')),
-                            ButtonSegment(value: true, label: Text('Daftar Akun Baru')),
                           ],
-                          selected: {_isRegister},
-                          onSelectionChanged: (s) => setState(() => _isRegister = s.first),
                         ),
-                        const SizedBox(height: 14),
-                        if (_isRegister) ...[
-                          TextField(
-                            controller: _namaCtrl,
-                            decoration: const InputDecoration(
-                              labelText: 'Nama Lengkap / Kelompok / Organisasi',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _role,
-                            decoration: const InputDecoration(
-                              labelText: 'Peran Akun',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(value: 'petani', child: Text('Petani / Pengurus Poktan')),
-                              DropdownMenuItem(value: 'gudang', child: Text('Pengelola Gudang')),
-                              DropdownMenuItem(value: 'pembeli', child: Text('Pembeli (Koperasi / SPPG / Pabrik)')),
-                            ],
-                            onChanged: (v) => setState(() => _role = v ?? 'petani'),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            initialValue: _kabupaten,
-                            decoration: const InputDecoration(
-                              labelText: 'Kabupaten',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: SimpanJualEngine.jatengCoords.keys
-                                .map((k) => DropdownMenuItem(value: k, child: Text(k)))
-                                .toList(),
-                            onChanged: (v) => setState(() => _kabupaten = v ?? 'Banyumas'),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        TextField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'petani@demo.id',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _passCtrl,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Kata Sandi',
-                            hintText: 'demo12345',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                          onPressed: _busy ? null : _submitManual,
-                          child: _busy
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : Text(_isRegister ? 'Daftar & Masuk' : 'Masuk'),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+
+                    // Kolom 2: Form Masuk / Registrasi Manual
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _isRegister ? 'Pendaftaran Akun Baru' : 'Masuk dengan Email',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: p.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SegmentedButton<bool>(
+                              segments: const [
+                                ButtonSegment(value: false, label: Text('Masuk Akun')),
+                                ButtonSegment(value: true, label: Text('Daftar Baru')),
+                              ],
+                              selected: {_isRegister},
+                              onSelectionChanged: (s) => setState(() => _isRegister = s.first),
+                            ),
+                            const SizedBox(height: 16),
+                            if (_isRegister) ...[
+                              TextField(
+                                controller: _namaCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nama Lengkap / Poktan / Koperasi',
+                                  hintText: 'Masukkan nama pengguna atau organisasi',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: _role,
+                                decoration: const InputDecoration(labelText: 'Pilih Peran Akun'),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'petani',
+                                    child: Text('Petani / Pengurus Poktan'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'gudang',
+                                    child: Text('Pengelola Gudang Penyimpanan'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'pembeli',
+                                    child: Text('Pembeli (Koperasi / RMU / SPPG)'),
+                                  ),
+                                ],
+                                onChanged: (v) => setState(() => _role = v ?? 'petani'),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: _kabupaten,
+                                decoration: const InputDecoration(labelText: 'Kabupaten Wilayah'),
+                                items: SimpanJualEngine.jatengCoords.keys
+                                    .map((k) => DropdownMenuItem(value: k, child: Text(k)))
+                                    .toList(),
+                                onChanged: (v) => setState(() => _kabupaten = v ?? 'Banyumas'),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            TextField(
+                              controller: _emailCtrl,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Alamat Email',
+                                hintText: 'nama@domain.id',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _passCtrl,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Kata Sandi',
+                                hintText: 'Minimal 6 karakter',
+                              ),
+                              onSubmitted: (_) => _submitManual(),
+                            ),
+                            const SizedBox(height: 20),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: SplitGoldCtaButton(
+                                label: _busy
+                                    ? 'Memproses Sesi...'
+                                    : (_isRegister ? 'Buat Akun & Masuk' : 'Masuk Sekarang'),
+                                onPressed: _busy ? null : _submitManual,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

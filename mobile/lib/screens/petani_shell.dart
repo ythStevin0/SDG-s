@@ -5,6 +5,7 @@ import '../core/app_state.dart';
 import '../core/engine.dart';
 import '../core/formatters.dart';
 import '../core/models.dart';
+import '../core/theme.dart';
 import '../widgets/price_forecast_chart.dart';
 import '../widgets/server_config_dialog.dart';
 import '../widgets/warehouse_map_card.dart';
@@ -21,7 +22,9 @@ class PetaniShell extends StatefulWidget {
 
 class _PetaniShellState extends State<PetaniShell> {
   int _navIndex = 0;
+  bool _sidebarExpanded = true;
   bool _loading = true;
+  String? _loadError;
 
   List<CommodityModel> _commodities = const [];
   List<StockItem> _stocks = const [];
@@ -49,7 +52,10 @@ class _PetaniShellState extends State<PetaniShell> {
   Future<void> _refreshAll() async {
     final user = widget.appState.currentUser;
     if (user == null) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final comms = await widget.appState.api.fetchCommodities();
       final stocks = await widget.appState.api.fetchStocks(user.id);
@@ -84,8 +90,10 @@ class _PetaniShellState extends State<PetaniShell> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error memuat data: $e')));
+        setState(() {
+          _loadError = e.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
       }
     }
   }
@@ -100,8 +108,8 @@ class _PetaniShellState extends State<PetaniShell> {
   void _showAddStockSheet() {
     final user = widget.appState.currentUser!;
     var kode = _commodities.isNotEmpty ? _commodities.first.kode : 'jagung';
-    final qtyCtrl = TextEditingController(text: '3500');
-    final kaCtrl = TextEditingController(text: '16.5');
+    final qtyCtrl = TextEditingController();
+    final kaCtrl = TextEditingController();
     final catatanCtrl = TextEditingController();
     var kab = user.kabupaten;
 
@@ -109,19 +117,19 @@ class _PetaniShellState extends State<PetaniShell> {
       context: context,
       isScrollControlled: true,
       builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
         child: StatefulBuilder(
           builder: (ctx, setModal) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Catat Stok Panen Baru (F2)',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const Text('Catat Stok Panen Baru',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: kode,
-                  decoration: const InputDecoration(labelText: 'Komoditas', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Pilih Komoditas'),
                   items: _commodities
                       .map((c) => DropdownMenuItem(value: c.kode, child: Text('${c.nama} (${c.kode})')))
                       .toList(),
@@ -132,19 +140,23 @@ class _PetaniShellState extends State<PetaniShell> {
                   controller: qtyCtrl,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                      labelText: 'Jumlah Panen (kg)', border: OutlineInputBorder()),
+                    labelText: 'Berat Panen (kg)',
+                    hintText: 'Contoh: 3500',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: kaCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
-                      labelText: 'Kadar Air Aktual (%)', border: OutlineInputBorder()),
+                    labelText: 'Kadar Air Aktual (%)',
+                    hintText: 'Contoh: 16.5',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: SimpanJualEngine.jatengCoords.containsKey(kab) ? kab : 'Banyumas',
-                  decoration: const InputDecoration(labelText: 'Kabupaten', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Kabupaten Lokasi Panen'),
                   items: SimpanJualEngine.jatengCoords.keys
                       .map((k) => DropdownMenuItem(value: k, child: Text(k)))
                       .toList(),
@@ -154,12 +166,14 @@ class _PetaniShellState extends State<PetaniShell> {
                 TextField(
                   controller: catatanCtrl,
                   decoration: const InputDecoration(
-                      labelText: 'Catatan Mutu / Blok Sawah', border: OutlineInputBorder()),
+                    labelText: 'Catatan Blok Sawah / Mutu',
+                    hintText: 'Opsional, misal blok sawah utara',
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 FilledButton(
-                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                   onPressed: () async {
+                    final nav = Navigator.of(ctx);
                     final qty = double.tryParse(qtyCtrl.text) ?? 0;
                     final ka = double.tryParse(kaCtrl.text.replaceAll(',', '.')) ?? 14;
                     if (qty <= 0) return;
@@ -170,10 +184,10 @@ class _PetaniShellState extends State<PetaniShell> {
                       'kabupaten': kab,
                       'catatan': catatanCtrl.text.trim(),
                     });
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (ctx.mounted) nav.pop();
                     await _refreshAll();
                   },
-                  child: const Text('Simpan Stok'),
+                  child: const Text('Simpan Catatan Stok'),
                 ),
               ],
             ),
@@ -203,15 +217,15 @@ class _PetaniShellState extends State<PetaniShell> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModal) => AlertDialog(
-          title: Text('Ajukan Sewa Atomik — ${wh.nama}'),
+          title: Text('Ajukan Sewa Ruang: ${wh.nama}'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Min. volume ${formatKg(wh.minVolumeKg)} · Min. ${wh.minHari} hari · Tarif Rp${wh.tarifPerKgHari}/kg/hr',
-                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
+                  'Minimum ${formatKg(wh.minVolumeKg)} • Minimum ${wh.minHari} hari • Tarif Rp${wh.tarifPerKgHari}/kg/hari',
+                  style: const TextStyle(fontSize: 12.5),
                 ),
                 const SizedBox(height: 12),
                 if (readyLots.isNotEmpty && freeStocks.isNotEmpty)
@@ -227,8 +241,7 @@ class _PetaniShellState extends State<PetaniShell> {
                 if (!useLot && freeStocks.isNotEmpty)
                   DropdownButtonFormField<String>(
                     initialValue: selectedStockId,
-                    decoration: const InputDecoration(
-                        labelText: 'Pilih Stok Bebas', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Pilih Stok Bebas'),
                     items: freeStocks
                         .map((s) => DropdownMenuItem(
                               value: s.id,
@@ -240,8 +253,7 @@ class _PetaniShellState extends State<PetaniShell> {
                 if (useLot && readyLots.isNotEmpty)
                   DropdownButtonFormField<String>(
                     initialValue: selectedLotId,
-                    decoration: const InputDecoration(
-                        labelText: 'Pilih Lot Kolektif', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Pilih Lot Kolektif'),
                     items: readyLots
                         .map((l) => DropdownMenuItem(
                               value: l.id,
@@ -254,15 +266,13 @@ class _PetaniShellState extends State<PetaniShell> {
                 TextField(
                   controller: qtyCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'Volume Diajukan (kg)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Volume Diajukan (kg)'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: hariCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'Durasi Simpan (hari)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Lama Simpan (hari)'),
                 ),
               ],
             ),
@@ -286,7 +296,7 @@ class _PetaniShellState extends State<PetaniShell> {
                   await _refreshAll();
                   if (mounted) {
                     rootMessenger.showSnackBar(
-                      const SnackBar(content: Text('Pengajuan sewa berhasil dikirim secara atomik!')),
+                      const SnackBar(content: Text('Pengajuan sewa berhasil dikirim secara atomik.')),
                     );
                   }
                 } catch (e) {
@@ -310,7 +320,7 @@ class _PetaniShellState extends State<PetaniShell> {
         _stocks.where((s) => s.freeKg > 0 && s.commodityKode == dem.commodityKode).toList();
     if (matchingStocks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Anda belum memiliki stok bebas ${dem.commodityNama}')),
+        SnackBar(content: Text('Belum ada stok bebas ${dem.commodityNama} yang dapat ditawarkan.')),
       );
       return;
     }
@@ -329,14 +339,13 @@ class _PetaniShellState extends State<PetaniShell> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Sisa kuota pembeli: ${formatKg(dem.sisaKuotaKg)} · Harga acuan ${formatRupiah(dem.hargaAcuan)}/kg',
-                style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
+                'Sisa kuota pembeli: ${formatKg(dem.sisaKuotaKg)} • Harga acuan ${formatRupiah(dem.hargaAcuan)}/kg',
+                style: const TextStyle(fontSize: 12.5),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: stockId,
-                decoration:
-                    const InputDecoration(labelText: 'Pilih Stok Bebas', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Pilih Stok Bebas'),
                 items: matchingStocks
                     .map((s) => DropdownMenuItem(
                           value: s.id,
@@ -349,15 +358,13 @@ class _PetaniShellState extends State<PetaniShell> {
               TextField(
                 controller: qtyCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Volume Ditawarkan (kg)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Volume Ditawarkan (kg)'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: tawarCtrl,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Harga Tawar (Rp/kg)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Harga Tawar (Rp/kg)'),
               ),
             ],
           ),
@@ -379,7 +386,7 @@ class _PetaniShellState extends State<PetaniShell> {
                   await _refreshAll();
                   if (mounted) {
                     rootMessenger.showSnackBar(
-                      const SnackBar(content: Text('Penawaran jual terkirim!')),
+                      const SnackBar(content: Text('Penawaran jual berhasil diajukan.')),
                     );
                   }
                 } catch (e) {
@@ -400,243 +407,448 @@ class _PetaniShellState extends State<PetaniShell> {
 
   @override
   Widget build(BuildContext context) {
+    final p = SimpanJualPalette.of(context);
     final user = widget.appState.currentUser!;
-    final wide = MediaQuery.sizeOf(context).width >= 820;
+    final w = MediaQuery.sizeOf(context).width;
+    final isDesktop = w >= 1024;
+    final isTablet = w >= 640 && w < 1024;
 
-    final bodyContent = _loading
-        ? const Center(child: CircularProgressIndicator())
-        : IndexedStack(
-            index: _navIndex,
-            children: [
-              _buildStokDanHargaTab(),
-              _buildSimpanDanLotTab(),
-              _buildJualDanRiwayatTab(),
-            ],
-          );
+    final mainContent = _loading
+        ? const Padding(
+            padding: EdgeInsets.all(20),
+            child: StatePanel(
+              icon: Icons.sync_rounded,
+              title: 'Memuat data panen, gudang, dan bursa pembeli',
+              message: 'Menyinkronkan stok bebas dan status pengajuan terkini.',
+              isLoading: true,
+            ),
+          )
+        : _loadError != null
+            ? Padding(
+                padding: const EdgeInsets.all(20),
+                child: StatePanel(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'Gagal memuat data ruang kerja petani',
+                  message: _loadError!,
+                  actionLabel: 'Muat Ulang Data',
+                  onAction: _refreshAll,
+                  isError: true,
+                ),
+              )
+            : IndexedStack(
+                index: _navIndex,
+                children: [
+                  _buildStokDanHargaTab(p),
+                  _buildSimpanDanLotTab(p),
+                  _buildJualDanRiwayatTab(p),
+                ],
+              );
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(user.nama, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            Text('Peran: Petani/Poktan · ${user.kabupaten}',
-                style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569))),
+            const SimpanJualBrand(lightOnDark: true, compact: true),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                '${user.nama} (${user.kabupaten})',
+                style: TextStyle(fontSize: 13.5, color: p.goldTextOnDark, fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         actions: [
           IconButton(
-            tooltip: 'Mode Lapangan Aa+',
-            onPressed: widget.appState.toggleFieldMode,
+            tooltip: widget.appState.darkMode ? 'Mode Terang' : 'Mode Rimbun Gelap',
+            onPressed: widget.appState.toggleDarkMode,
             icon: Icon(
-              Icons.text_increase_rounded,
-              color: widget.appState.fieldMode ? const Color(0xFFD97706) : null,
+              widget.appState.darkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
             ),
+          ),
+          IconButton(
+            tooltip: 'Perbesar Teks Mode Lapangan Aa+',
+            onPressed: widget.appState.toggleFieldMode,
+            icon: const Icon(Icons.format_size_rounded),
           ),
           IconButton(
             tooltip: 'Pengaturan Server',
             onPressed: () => showServerConfigDialog(context, widget.appState),
             icon: Icon(
               widget.appState.api.offlineFallbackMode
-                  ? Icons.cloud_off_rounded
-                  : Icons.cloud_done_rounded,
+                  ? Icons.portable_wifi_off_outlined
+                  : Icons.dns_outlined,
             ),
           ),
           IconButton(
-            tooltip: 'Muat Ulang',
+            tooltip: 'Muat Ulang Data',
             onPressed: _refreshAll,
             icon: const Icon(Icons.refresh_rounded),
           ),
           IconButton(
-            tooltip: 'Keluar / Ganti Peran',
+            tooltip: 'Keluar / Ganti Akun Peran',
             onPressed: widget.appState.logout,
             icon: const Icon(Icons.logout_rounded),
           ),
         ],
       ),
       floatingActionButton: _navIndex == 0
-          ? FloatingActionButton.extended(
+          ? SplitGoldCtaButton(
+              label: 'Catat Stok Panen',
               onPressed: _showAddStockSheet,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Catat Stok'),
             )
           : null,
-      bottomNavigationBar: wide
-          ? null
-          : NavigationBar(
-              selectedIndex: _navIndex,
-              onDestinationSelected: (i) => setState(() => _navIndex = i),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.inventory_2_outlined),
-                  selectedIcon: Icon(Icons.inventory_2_rounded),
-                  label: 'Stok & Harga',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.warehouse_outlined),
-                  selectedIcon: Icon(Icons.warehouse_rounded),
-                  label: 'Simpan & Lot',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.storefront_outlined),
-                  selectedIcon: Icon(Icons.storefront_rounded),
-                  label: 'Jual & Status',
-                ),
-              ],
-            ),
-      body: wide
+      bottomNavigationBar: (!isDesktop && !isTablet)
+          ? SafeArea(
+              top: false,
+              child: NavigationBar(
+                selectedIndex: _navIndex,
+                onDestinationSelected: (i) => setState(() => _navIndex = i),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.inventory_2_outlined),
+                    selectedIcon: Icon(Icons.inventory_2_rounded),
+                    label: 'Stok & Harga',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.warehouse_outlined),
+                    selectedIcon: Icon(Icons.warehouse_rounded),
+                    label: 'Simpan & Lot',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.storefront_outlined),
+                    selectedIcon: Icon(Icons.storefront_rounded),
+                    label: 'Jual & Status',
+                  ),
+                ],
+              ),
+            )
+          : null,
+      body: isDesktop
           ? Row(
               children: [
-                NavigationRail(
-                  selectedIndex: _navIndex,
-                  onDestinationSelected: (i) => setState(() => _navIndex = i),
-                  labelType: NavigationRailLabelType.all,
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.inventory_2_outlined),
-                      selectedIcon: Icon(Icons.inventory_2_rounded),
-                      label: Text('Stok & Harga'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.warehouse_outlined),
-                      selectedIcon: Icon(Icons.warehouse_rounded),
-                      label: Text('Simpan & Lot'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.storefront_outlined),
-                      selectedIcon: Icon(Icons.storefront_rounded),
-                      label: Text('Jual & Status'),
-                    ),
-                  ],
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(child: bodyContent),
+                _buildDesignedDesktopSidebar(p),
+                Expanded(child: mainContent),
               ],
             )
-          : bodyContent,
+          : isTablet
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      backgroundColor: p.frameBg,
+                      selectedIndex: _navIndex,
+                      indicatorColor: p.harvestGold,
+                      selectedIconTheme: IconThemeData(color: p.onGold),
+                      unselectedIconTheme: const IconThemeData(color: Color(0xFFC2D6C4)),
+                      selectedLabelTextStyle:
+                          TextStyle(color: p.goldTextOnDark, fontWeight: FontWeight.w800),
+                      unselectedLabelTextStyle: const TextStyle(color: Color(0xFFC2D6C4)),
+                      onDestinationSelected: (i) => setState(() => _navIndex = i),
+                      labelType: NavigationRailLabelType.all,
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.inventory_2_outlined),
+                          selectedIcon: Icon(Icons.inventory_2_rounded),
+                          label: Text('Stok & Harga'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.warehouse_outlined),
+                          selectedIcon: Icon(Icons.warehouse_rounded),
+                          label: Text('Simpan & Lot'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.storefront_outlined),
+                          selectedIcon: Icon(Icons.storefront_rounded),
+                          label: Text('Jual & Status'),
+                        ),
+                      ],
+                    ),
+                    Expanded(child: mainContent),
+                  ],
+                )
+              : mainContent,
     );
   }
 
-  Widget _buildStokDanHargaTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshAll,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+  Widget _buildDesignedDesktopSidebar(SimpanJualPalette p) {
+    const items = [
+      (icon: Icons.inventory_2_rounded, label: 'Stok & Proyeksi Harga'),
+      (icon: Icons.warehouse_rounded, label: 'Gudang SRG & Lot Poktan'),
+      (icon: Icons.storefront_rounded, label: 'Janji Beli & Riwayat'),
+    ];
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: _sidebarExpanded ? 248 : 76,
+      color: p.frameBg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Stok Panen Saya (Ketuk Hitung Keputusan)',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          if (_stocks.isEmpty)
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('Belum ada stok tercatat. Ketuk tombol "Catat Stok" di kanan bawah.'),
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+            child: Row(
+              mainAxisAlignment:
+                  _sidebarExpanded ? MainAxisAlignment.spaceBetween : MainAxisAlignment.center,
+              children: [
+                if (_sidebarExpanded)
+                  Text(
+                    'MENU PETANI',
+                    style: TextStyle(
+                      color: p.goldTextOnDark,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                IconButton(
+                  tooltip: _sidebarExpanded ? 'Ciutkan bilah menu' : 'Bentangkan bilah menu',
+                  onPressed: () => setState(() => _sidebarExpanded = !_sidebarExpanded),
+                  icon: Icon(
+                    _sidebarExpanded
+                        ? Icons.keyboard_double_arrow_left_rounded
+                        : Icons.keyboard_double_arrow_right_rounded,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
-          ..._stocks.map((st) {
-            final perluJemur = st.kadarAir > st.commodityParams.kadarAirMaksPct;
-            return Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ),
+          for (var i = 0; i < items.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Semantics(
+                button: true,
+                selected: _navIndex == i,
+                label: items[i].label,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => setState(() => _navIndex = i),
+                  child: Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: _navIndex == i ? p.harvestGold : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment:
+                          _sidebarExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
                       children: [
-                        Expanded(
-                          child: Text(st.commodityNama,
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                        Icon(
+                          items[i].icon,
+                          color: _navIndex == i ? p.onGold : const Color(0xFFC2D6C4),
+                          size: 20,
                         ),
-                        Chip(
-                          label: Text(formatStatusLabel(st.status),
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ),
-                    Text('Panen ${st.tglPanen} · ${st.kabupaten}',
-                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _metricChip('Total', formatKg(st.qtyKg)),
-                        const SizedBox(width: 8),
-                        _metricChip('Terkunci', formatKg(st.reservedKg)),
-                        const SizedBox(width: 8),
-                        _metricChip('Bebas', formatKg(st.freeKg), highlight: true),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      perluJemur
-                          ? 'Kadar Air ${st.kadarAir}% (Perlu jemur ke ≤ ${st.commodityParams.kadarAirMaksPct}%)'
-                          : 'Kadar Air ${st.kadarAir}% (Layak simpan gudang ✓)',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: perluJemur ? const Color(0xFFB45309) : const Color(0xFF047857),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    StockDecisionScreen(appState: widget.appState, stock: st),
+                        if (_sidebarExpanded) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              items[i].label,
+                              style: TextStyle(
+                                color: _navIndex == i ? p.onGold : Colors.white,
+                                fontWeight: _navIndex == i ? FontWeight.w900 : FontWeight.w600,
+                                fontSize: 13.5,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            icon: const Icon(Icons.calculate_outlined),
-                            label: const Text('Hitung Tahan vs Jual & Panjar'),
-                          ),
-                        ),
-                        if (st.reservedKg == 0 && st.soldKg == 0) ...[
-                          const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: 'Hapus Stok',
-                            onPressed: () async {
-                              await widget.appState.api.deleteStock(st.id);
-                              await _refreshAll();
-                            },
-                            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                           ),
                         ],
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            );
-          }),
-          const SizedBox(height: 14),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFFCBD5E1)),
             ),
+          const Spacer(),
+          if (_sidebarExpanded)
+            Container(
+              margin: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: p.stageLeft,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  topRight: Radius.circular(6),
+                  bottomLeft: Radius.circular(6),
+                  bottomRight: Radius.circular(10),
+                ),
+              ),
+              child: Text(
+                'Stok aktif: ${_stocks.length} lot panen\nKode poktan demo: TANIJAYA',
+                style: const TextStyle(color: Color(0xFFC2D6C4), fontSize: 12, height: 1.4),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStokDanHargaTab(SimpanJualPalette p) {
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 108),
+        children: [
+          // Banner ringkas beraksen lengkung emas sesuai identitas visual
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [p.stageLeft, p.stageMid],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(30),
+                topRight: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+                bottomRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LUMBUNG STOK PETANI',
+                        style: TextStyle(
+                          color: p.goldTextOnDark,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Pilih stok panen untuk menghitung titik impas tahan gudang atau adu panjar.',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_stocks.isEmpty)
+            StatePanel(
+              icon: Icons.inventory_2_outlined,
+              title: 'Belum ada catatan stok panen',
+              message:
+                  'Tambahkan stok gabah atau jagung Anda terlebih dahulu untuk membuka kalkulator titik impas dan pencarian gudang.',
+              actionLabel: 'Catat Stok Pertama',
+              onAction: _showAddStockSheet,
+            )
+          else
+            ResponsiveThreeStageGrid(
+              maxColumns: 2,
+              children: _stocks.map((st) {
+                final perluJemur = st.kadarAir > st.commodityParams.kadarAirMaksPct;
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                st.commodityNama,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: p.ink,
+                                ),
+                              ),
+                            ),
+                            StampBadge(
+                              label: formatStatusLabel(st.status),
+                              tone: st.freeKg > 0 ? StampTone.ok : StampTone.neutral,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Panen ${st.tglPanen} • ${st.kabupaten}',
+                          style: TextStyle(fontSize: 12.5, color: p.inkMuted),
+                        ),
+                        const Divider(height: 18),
+                        LedgerRow(label: 'Total panen tercatat', value: formatKg(st.qtyKg)),
+                        LedgerRow(label: 'Terkunci pada sewa/lot', value: formatKg(st.reservedKg)),
+                        LedgerRow(
+                          label: 'Stok bebas siap alokasi',
+                          value: formatKg(st.freeKg),
+                          emphasize: true,
+                          valueColor: p.okInk,
+                        ),
+                        LedgerRow(
+                          label: 'Kadar air aktual',
+                          value: perluJemur
+                              ? '${st.kadarAir}% (Jemur ke ≤${st.commodityParams.kadarAirMaksPct}%)'
+                              : '${st.kadarAir}% (Siap simpan)',
+                          valueColor: perluJemur ? p.warnInk : p.okInk,
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        StockDecisionScreen(appState: widget.appState, stock: st),
+                                  ),
+                                ),
+                                icon: const Icon(Icons.calculate_outlined, size: 18),
+                                label: const Text('Buka Hitungan Keputusan'),
+                              ),
+                            ),
+                            if (st.reservedKg == 0 && st.soldKg == 0) ...[
+                              const SizedBox(width: 8),
+                              IconButton(
+                                tooltip: 'Hapus catatan stok ini',
+                                onPressed: () async {
+                                  await widget.appState.api.deleteStock(st.id);
+                                  await _refreshAll();
+                                },
+                                icon: Icon(Icons.delete_outline_rounded, color: p.dangerInk),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          const SizedBox(height: 20),
+          Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Expanded(
-                        child: Text('Tren Harga Pasar & Prediksi (F3)',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      Expanded(
+                        child: Text(
+                          'Bagaimana arah harga $_selectedPriceComm dalam 4 sampai 12 minggu ke depan?',
+                          style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: p.ink),
+                        ),
                       ),
+                      const SizedBox(width: 10),
                       DropdownButton<String>(
                         value: _commodities.any((c) => c.kode == _selectedPriceComm)
                             ? _selectedPriceComm
@@ -652,8 +864,10 @@ class _PetaniShellState extends State<PetaniShell> {
                       ),
                     ],
                   ),
-                  Text('Harga terkini: ${formatRupiah(_latestPrice)}/kg (Data Ilustrasi Jateng)',
-                      style: const TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                  Text(
+                    'Harga acuan terkini: ${formatRupiah(_latestPrice)}/kg (Data ilustrasi Jawa Tengah)',
+                    style: TextStyle(fontSize: 13, color: p.inkMuted),
+                  ),
                   const SizedBox(height: 12),
                   if (_forecast != null)
                     PriceForecastChart(series: _priceSeries, forecast: _forecast!),
@@ -666,27 +880,29 @@ class _PetaniShellState extends State<PetaniShell> {
     );
   }
 
-  Widget _buildSimpanDanLotTab() {
+  Widget _buildSimpanDanLotTab(SimpanJualPalette p) {
     final user = widget.appState.currentUser!;
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
-          const TabBar(
-            tabs: [
-              Tab(text: 'Peta & Skor Gudang (F8/F9)'),
-              Tab(text: 'Lot Kolektif Poktan (F7)'),
-            ],
+          Material(
+            color: p.surface,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'Peta & Skor Gudang'),
+                Tab(text: 'Lot Kolektif Poktan'),
+              ],
+            ),
           ),
           Expanded(
             child: TabBarView(
               children: [
-                // Sub-tab 1: Peta & Gudang
                 ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 96),
                   children: [
                     Wrap(
-                      spacing: 10,
+                      spacing: 12,
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
@@ -695,8 +911,10 @@ class _PetaniShellState extends State<PetaniShell> {
                               ? _whFilterComm
                               : 'jagung',
                           items: _commodities
-                              .map((c) =>
-                                  DropdownMenuItem(value: c.kode, child: Text('Komoditas: ${c.nama}')))
+                              .map((c) => DropdownMenuItem(
+                                    value: c.kode,
+                                    child: Text('Komoditas: ${c.nama}'),
+                                  ))
                               .toList(),
                           onChanged: (v) async {
                             if (v == null) return;
@@ -705,7 +923,7 @@ class _PetaniShellState extends State<PetaniShell> {
                           },
                         ),
                         FilterChip(
-                          label: const Text('Hanya Gudang SRG'),
+                          label: const Text('Khusus Gudang SRG'),
                           selected: _onlySrg,
                           onSelected: (v) async {
                             setState(() => _onlySrg = v);
@@ -714,7 +932,7 @@ class _PetaniShellState extends State<PetaniShell> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     WarehouseMapCard(
                       farmerKabupaten: user.kabupaten,
                       warehouses: _warehouses,
@@ -722,106 +940,108 @@ class _PetaniShellState extends State<PetaniShell> {
                         if (wh.score.isEligible) _showRentalDialog(wh);
                       },
                     ),
-                    const SizedBox(height: 14),
-                    ..._warehouses.map((wh) => Card(
-                          elevation: 0,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: wh.score.isEligible
-                                  ? const Color(0xFF86EFAC)
-                                  : const Color(0xFFE2E8F0),
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(wh.nama,
-                                          style: const TextStyle(
-                                              fontSize: 16, fontWeight: FontWeight.w800)),
-                                    ),
-                                    Container(
-                                      padding:
-                                          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                      decoration: BoxDecoration(
-                                        color: wh.score.isEligible
-                                            ? const Color(0xFF047857)
-                                            : Colors.grey.shade400,
-                                        borderRadius: BorderRadius.circular(999),
-                                      ),
-                                      child: Text(
-                                        wh.score.isEligible
-                                            ? 'Skor ${wh.score.totalScore}/100'
-                                            : 'Tidak Memenuhi',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 12,
+                    const SizedBox(height: 16),
+                    if (_warehouses.isEmpty)
+                      const StatePanel(
+                        icon: Icons.warehouse_outlined,
+                        title: 'Tidak ada gudang yang cocok dengan saringan ini',
+                        message: 'Matikan filter Khusus Gudang SRG atau ganti komoditas.',
+                      )
+                    else
+                      ResponsiveThreeStageGrid(
+                        maxColumns: 2,
+                        children: _warehouses.map((wh) {
+                          return Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          wh.nama,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w900,
+                                            color: p.ink,
+                                          ),
                                         ),
                                       ),
+                                      StampBadge(
+                                        label: wh.score.isEligible
+                                            ? 'SKOR ${wh.score.totalScore}/100'
+                                            : 'TIDAK MEMENUHI',
+                                        tone: wh.score.isEligible ? StampTone.ok : StampTone.warn,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  LedgerRow(
+                                    label: 'Lokasi & estimasi jarak jalan',
+                                    value: '${wh.kabupaten} (~${wh.score.distanceKm} km)',
+                                  ),
+                                  LedgerRow(
+                                    label: 'Sisa ruang tersedia',
+                                    value: formatKg(wh.tersediaKg),
+                                    emphasize: true,
+                                  ),
+                                  LedgerRow(
+                                    label: 'Tarif simpan harian',
+                                    value: 'Rp${wh.tarifPerKgHari}/kg/hari',
+                                  ),
+                                  if (!wh.score.isEligible && wh.score.ineligibleReason != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text(
+                                        'Kendala: ${wh.score.ineligibleReason}',
+                                        style: TextStyle(
+                                          color: p.dangerInk,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    )
+                                  else ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Sub-skor: Fasilitas ${wh.score.fasilitasWajib}/30 • Kondisi/SRG ${wh.score.kondisiDanSrg}/30 • Jarak ${wh.score.jarak}/15 • Tarif ${wh.score.tarif}/15 • Ruang ${wh.score.kapasitas}/10',
+                                      style: TextStyle(fontSize: 12, color: p.inkMuted),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    FilledButton.icon(
+                                      onPressed: () => _showRentalDialog(wh),
+                                      icon: const Icon(Icons.lock_clock_outlined, size: 18),
+                                      label: const Text('Ajukan Sewa Ruang'),
                                     ),
                                   ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${wh.kabupaten} (~${wh.score.distanceKm} km) · Tersedia ${formatKg(wh.tersediaKg)} · Tarif Rp${wh.tarifPerKgHari}/kg/hr',
-                                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
-                                ),
-                                if (!wh.score.isEligible && wh.score.ineligibleReason != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 6),
-                                    child: Text(
-                                      'Alasan: ${wh.score.ineligibleReason}',
-                                      style: const TextStyle(
-                                          color: Color(0xFFB91C1C), fontWeight: FontWeight.w600),
-                                    ),
-                                  )
-                                else ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Rincian Skor Anti-NaN: Fasilitas ${wh.score.fasilitasWajib}/30 · Kondisi/SRG ${wh.score.kondisiDanSrg}/30 · Jarak ${wh.score.jarak}/15 · Tarif ${wh.score.tarif}/15 · Kapasitas ${wh.score.kapasitas}/10',
-                                    style: const TextStyle(fontSize: 11.5, color: Color(0xFF065F46)),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  FilledButton.icon(
-                                    onPressed: () => _showRentalDialog(wh),
-                                    icon: const Icon(Icons.lock_clock_outlined),
-                                    label: const Text('Ajukan Sewa Atomik'),
-                                  ),
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                        )),
+                          );
+                        }).toList(),
+                      ),
                   ],
                 ),
 
-                // Sub-tab 2: Lot Kolektif Poktan
                 ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 96),
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _showJoinGroupDialog,
-                            icon: const Icon(Icons.group_add_outlined),
-                            label: const Text('Gabung Kode Poktan'),
-                          ),
+                        OutlinedButton.icon(
+                          onPressed: _showJoinGroupDialog,
+                          icon: const Icon(Icons.group_add_outlined),
+                          label: const Text('Gabung Kode Poktan'),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton.tonalIcon(
-                            onPressed: _showCreateGroupOrLotDialog,
-                            icon: const Icon(Icons.add_business_outlined),
-                            label: const Text('Buat Poktan / Lot'),
-                          ),
+                        FilledButton.icon(
+                          onPressed: _showCreateGroupOrLotDialog,
+                          icon: const Icon(Icons.add_business_outlined),
+                          label: const Text('Buat Poktan / Lot Baru'),
                         ),
                       ],
                     ),
@@ -831,54 +1051,82 @@ class _PetaniShellState extends State<PetaniShell> {
                         spacing: 8,
                         runSpacing: 8,
                         children: _groups
-                            .map((g) => Chip(
-                                  avatar: const Icon(Icons.groups_rounded, size: 18),
-                                  label: Text('${g.nama} · Kode: ${g.kodeGabung}'),
+                            .map((g) => StampBadge(
+                                  label: '${g.nama} • KODE: ${g.kodeGabung}',
+                                  icon: Icons.groups_rounded,
                                 ))
                             .toList(),
                       ),
-                    const SizedBox(height: 12),
-                    ..._lots.map((lt) => Card(
-                          elevation: 0,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0xFFCBD5E1)),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('${lt.groupNama} — Lot ${lt.commodityNama}',
-                                    style:
-                                        const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                                Text(
-                                  'Terkumpul ${formatKg(lt.terkumpulKg)} / ${formatKg(lt.targetKg)} (${lt.progressPct}%) · Status: ${formatStatusLabel(lt.status)}',
-                                  style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+                    const SizedBox(height: 14),
+                    if (_lots.isEmpty)
+                      StatePanel(
+                        icon: Icons.groups_outlined,
+                        title: 'Belum tergabung pada Lot Kolektif',
+                        message:
+                            'Masukkan kode gabung TANIJAYA untuk ikut menghimpun stok bersama kelompok tani.',
+                        actionLabel: 'Masukkan Kode Poktan',
+                        onAction: _showJoinGroupDialog,
+                      )
+                    else
+                      ..._lots.map((lt) => Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(18),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '${lt.groupNama}: Lot ${lt.commodityNama}',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              color: p.ink,
+                                            ),
+                                          ),
+                                        ),
+                                        StampBadge(
+                                          label: formatStatusLabel(lt.status),
+                                          tone: lt.status == 'siap_ajukan'
+                                              ? StampTone.ok
+                                              : StampTone.neutral,
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    LedgerRow(
+                                      label: 'Progres volume terkumpul',
+                                      value:
+                                          '${formatKg(lt.terkumpulKg)} / ${formatKg(lt.targetKg)} (${lt.progressPct}%)',
+                                      emphasize: true,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    LinearProgressIndicator(
+                                      value: (lt.progressPct / 100.0).clamp(0.0, 1.0),
+                                      minHeight: 8,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ...lt.contributions.map((c) => Text(
+                                          '- ${c.userNama}: ${formatKg(c.qtyKg)} (${c.sharePct}% porsi)',
+                                          style: TextStyle(fontSize: 13, color: p.inkMuted),
+                                        )),
+                                    const SizedBox(height: 12),
+                                    if (lt.status == 'mengumpulkan' || lt.status == 'siap_ajukan')
+                                      FilledButton.icon(
+                                        onPressed: () => _showContributeLotDialog(lt),
+                                        icon: const Icon(Icons.merge_type_rounded),
+                                        label: const Text('Sumbang Stok Bebas ke Lot Ini'),
+                                      ),
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  value: (lt.progressPct / 100.0).clamp(0.0, 1.0),
-                                  minHeight: 8,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                const SizedBox(height: 10),
-                                ...lt.contributions.map((c) => Text(
-                                      '• ${c.userNama}: ${formatKg(c.qtyKg)} (${c.sharePct}% porsi)',
-                                      style: const TextStyle(fontSize: 12.5),
-                                    )),
-                                const SizedBox(height: 10),
-                                if (lt.status == 'mengumpulkan' || lt.status == 'siap_ajukan')
-                                  FilledButton.tonalIcon(
-                                    onPressed: () => _showContributeLotDialog(lt),
-                                    icon: const Icon(Icons.merge_type_rounded),
-                                    label: const Text('Sumbang Stok Bebas ke Lot Ini'),
-                                  ),
-                              ],
+                              ),
                             ),
-                          ),
-                        )),
+                          )),
                   ],
                 ),
               ],
@@ -889,164 +1137,198 @@ class _PetaniShellState extends State<PetaniShell> {
     );
   }
 
-  Widget _buildJualDanRiwayatTab() {
+  Widget _buildJualDanRiwayatTab(SimpanJualPalette p) {
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
-          const TabBar(
-            tabs: [
-              Tab(text: 'Bursa Janji Beli (F10/F11)'),
-              Tab(text: 'Status Sewa & Jual'),
-            ],
+          Material(
+            color: p.surface,
+            child: const TabBar(
+              tabs: [
+                Tab(text: 'Bursa Janji Beli'),
+                Tab(text: 'Status Sewa & Jual'),
+              ],
+            ),
           ),
           Expanded(
             child: TabBarView(
               children: [
                 ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: _demands.map((d) {
-                    final hasMatch =
-                        _stocks.any((s) => s.freeKg > 0 && s.commodityKode == d.commodityKode);
-                    return Card(
-                      elevation: 0,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: hasMatch ? const Color(0xFF86EFAC) : const Color(0xFFCBD5E1),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Text('${d.commodityNama} — ${d.buyerNama}',
-                                      style: const TextStyle(
-                                          fontSize: 16, fontWeight: FontWeight.w800)),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFEF3C7),
-                                    borderRadius: BorderRadius.circular(999),
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 96),
+                  children: [
+                    if (_demands.isEmpty)
+                      const StatePanel(
+                        icon: Icons.storefront_outlined,
+                        title: 'Belum ada pengumuman Janji Beli aktif',
+                        message: 'Kebutuhan pasokan baru dari koperasi dan SPPG akan tampil di sini.',
+                      )
+                    else
+                      ResponsiveThreeStageGrid(
+                        maxColumns: 2,
+                        children: _demands.map((d) {
+                          final hasMatch = _stocks
+                              .any((s) => s.freeKg > 0 && s.commodityKode == d.commodityKode);
+                          return Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '${d.commodityNama}: ${d.buyerNama}',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w900,
+                                            color: p.ink,
+                                          ),
+                                        ),
+                                      ),
+                                      StampBadge(
+                                        label: '${formatRupiah(d.hargaAcuan)}/kg',
+                                        tone: StampTone.warn,
+                                        icon: Icons.payments_outlined,
+                                      ),
+                                    ],
                                   ),
-                                  child: Text(
-                                    '${formatRupiah(d.hargaAcuan)}/kg',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF92400E),
+                                  const SizedBox(height: 8),
+                                  LedgerRow(label: 'Wilayah serah terima', value: d.kabupaten),
+                                  LedgerRow(label: 'Batas waktu butuh', value: d.dibutuhkanPada),
+                                  LedgerRow(
+                                    label: 'Sisa kuota belum terpenuhi',
+                                    value: formatKg(d.sisaKuotaKg),
+                                    emphasize: true,
+                                  ),
+                                  if (d.catatanMutu != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        'Syarat mutu: ${d.catatanMutu}',
+                                        style: TextStyle(fontSize: 12.5, color: p.inkMuted),
+                                      ),
                                     ),
+                                  const SizedBox(height: 8),
+                                  LinearProgressIndicator(
+                                    value: (d.progressPct / 100.0).clamp(0.0, 1.0),
+                                    minHeight: 7,
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${d.kabupaten} · Dibutuhkan: ${d.dibutuhkanPada} · Sisa Kuota: ${formatKg(d.sisaKuotaKg)}',
-                              style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
-                            ),
-                            if (d.catatanMutu != null)
-                              Text('Syarat mutu: ${d.catatanMutu}',
-                                  style: const TextStyle(fontSize: 12)),
-                            const SizedBox(height: 8),
-                            LinearProgressIndicator(
-                              value: (d.progressPct / 100.0).clamp(0.0, 1.0),
-                              minHeight: 7,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                if (hasMatch)
-                                  const Chip(
-                                    label: Text('Cocok dengan Stok Anda ✓',
-                                        style: TextStyle(fontSize: 11.5)),
-                                    backgroundColor: Color(0xFFDCFCE7),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 8,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      if (hasMatch)
+                                        const StampBadge(
+                                          label: 'COCOK DENGAN STOK ANDA',
+                                          tone: StampTone.ok,
+                                        ),
+                                      FilledButton(
+                                        onPressed: () => _showSaleDialog(d),
+                                        child: const Text('Ajukan Penawaran Jual'),
+                                      ),
+                                    ],
                                   ),
-                                const Spacer(),
-                                FilledButton(
-                                  onPressed: () => _showSaleDialog(d),
-                                  child: const Text('Ajukan Jual'),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       ),
-                    );
-                  }).toList(),
+                  ],
                 ),
 
-                // Riwayat Sewa & Jual
                 ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 96),
                   children: [
-                    const Text('Pengajuan Sewa Gudang',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 8),
+                    Text('Pengajuan Sewa Gudang',
+                        style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: p.ink)),
+                    const SizedBox(height: 10),
                     if (_rentals.isEmpty)
-                      const Text('Belum ada pengajuan sewa.',
-                          style: TextStyle(color: Color(0xFF64748B))),
-                    ..._rentals.map((r) => Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          child: ListTile(
-                            title: Text('${r.warehouseNama} (${formatKg(r.qtyKg)} · ${r.hari} hr)'),
-                            subtitle: Text(
-                                'Biaya est. ${formatRupiah(r.estimasiBiaya)} · Status: ${formatStatusLabel(r.status)}'),
-                            trailing: Wrap(
-                              spacing: 6,
-                              children: [
-                                if (r.status == 'diterima' && r.kontakWa != null)
-                                  FilledButton.tonalIcon(
-                                    onPressed: () => _openWhatsApp(
-                                      r.kontakWa,
-                                      'Halo Pengelola ${r.warehouseNama}, pengajuan sewa ${formatKg(r.qtyKg)} telah disetujui.',
-                                    ),
-                                    icon: const Icon(Icons.chat_outlined, size: 16),
-                                    label: const Text('WA'),
-                                  ),
-                                if (r.status == 'diajukan' || r.status == 'diterima')
-                                  TextButton(
-                                    onPressed: () async {
-                                      await widget.appState.api.respondRental(r.id, 'batal');
-                                      await _refreshAll();
-                                    },
-                                    child: const Text('Batal'),
-                                  ),
-                              ],
+                      StatePanel(
+                        icon: Icons.warehouse_outlined,
+                        title: 'Belum ada pengajuan sewa ruang simpan',
+                        message:
+                            'Buka tab Simpan & Lot untuk memilih gudang SRG atau koperasi terdekat.',
+                        actionLabel: 'Cari Gudang Simpan',
+                        onAction: () => setState(() => _navIndex = 1),
+                      )
+                    else
+                      ..._rentals.map((r) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              child: ListTile(
+                                title: Text(
+                                  '${r.warehouseNama} (${formatKg(r.qtyKg)} • ${r.hari} hari)',
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                subtitle: Text(
+                                  'Estimasi sewa ${formatRupiah(r.estimasiBiaya)} • Status: ${formatStatusLabel(r.status)}',
+                                ),
+                                trailing: Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    if (r.status == 'diterima' && r.kontakWa != null)
+                                      FilledButton.tonalIcon(
+                                        onPressed: () => _openWhatsApp(
+                                          r.kontakWa,
+                                          'Halo Pengelola ${r.warehouseNama}, pengajuan sewa ${formatKg(r.qtyKg)} telah disetujui.',
+                                        ),
+                                        icon: const Icon(Icons.chat_outlined, size: 16),
+                                        label: const Text('WhatsApp'),
+                                      ),
+                                    if (r.status == 'diajukan' || r.status == 'diterima')
+                                      OutlinedButton(
+                                        onPressed: () async {
+                                          await widget.appState.api.respondRental(r.id, 'batal');
+                                          await _refreshAll();
+                                        },
+                                        child: const Text('Batalkan'),
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        )),
-                    const SizedBox(height: 16),
-                    const Text('Penawaran Jual ke Pembeli',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 8),
+                          )),
+                    const SizedBox(height: 20),
+                    Text('Penawaran Jual ke Pembeli Siaga',
+                        style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w900, color: p.ink)),
+                    const SizedBox(height: 10),
                     if (_sales.isEmpty)
-                      const Text('Belum ada penawaran jual.',
-                          style: TextStyle(color: Color(0xFF64748B))),
-                    ..._sales.map((s) => Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          child: ListTile(
-                            title: Text('${s.commodityNama} → ${s.buyerNama} (${formatKg(s.qtyKg)})'),
-                            subtitle: Text(
-                                'Tawar ${formatRupiah(s.hargaTawar)}/kg (Total ${formatRupiah(s.totalNilaiRp)}) · ${formatStatusLabel(s.status)}'),
-                            trailing: (s.status == 'diajukan' || s.status == 'diterima')
-                                ? TextButton(
-                                    onPressed: () async {
-                                      await widget.appState.api.respondSale(s.id, 'batal');
-                                      await _refreshAll();
-                                    },
-                                    child: const Text('Batal'),
-                                  )
-                                : null,
-                          ),
-                        )),
+                      const StatePanel(
+                        icon: Icons.handshake_outlined,
+                        title: 'Belum ada penawaran jual aktif',
+                        message: 'Pilih salah satu kebutuhan pembeli di tab Bursa Janji Beli.',
+                      )
+                    else
+                      ..._sales.map((s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              child: ListTile(
+                                title: Text(
+                                  '${s.commodityNama} ke ${s.buyerNama} (${formatKg(s.qtyKg)})',
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                subtitle: Text(
+                                  'Tawar ${formatRupiah(s.hargaTawar)}/kg (Total ${formatRupiah(s.totalNilaiRp)}) • ${formatStatusLabel(s.status)}',
+                                ),
+                                trailing: (s.status == 'diajukan' || s.status == 'diterima')
+                                    ? OutlinedButton(
+                                        onPressed: () async {
+                                          await widget.appState.api.respondSale(s.id, 'batal');
+                                          await _refreshAll();
+                                        },
+                                        child: const Text('Batalkan'),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          )),
                   ],
                 ),
               ],
@@ -1058,7 +1340,7 @@ class _PetaniShellState extends State<PetaniShell> {
   }
 
   void _showJoinGroupDialog() {
-    final ctrl = TextEditingController(text: 'TANIJAYA');
+    final ctrl = TextEditingController();
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1067,25 +1349,27 @@ class _PetaniShellState extends State<PetaniShell> {
           controller: ctrl,
           decoration: const InputDecoration(
             labelText: 'Kode Gabung 8 Karakter',
-            border: OutlineInputBorder(),
+            hintText: 'Contoh demo: TANIJAYA',
           ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
+              final nav = Navigator.of(ctx);
+              final msg = ScaffoldMessenger.of(ctx);
               try {
-                await widget.appState.api
-                    .joinGroup(widget.appState.currentUser!.id, ctrl.text.trim());
-                if (ctx.mounted) Navigator.pop(ctx);
+                final code = ctrl.text.trim().isEmpty ? 'TANIJAYA' : ctrl.text.trim();
+                await widget.appState.api.joinGroup(widget.appState.currentUser!.id, code);
+                if (ctx.mounted) nav.pop();
                 await _refreshAll();
               } catch (e) {
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('$e')));
+                  msg.showSnackBar(SnackBar(content: Text('$e')));
                 }
               }
             },
-            child: const Text('Gabung'),
+            child: const Text('Gabung Poktan'),
           ),
         ],
       ),
@@ -1096,23 +1380,27 @@ class _PetaniShellState extends State<PetaniShell> {
     final user = widget.appState.currentUser!;
     final leaderGroups = _groups.where((g) => g.isKetua).toList();
     if (leaderGroups.isEmpty) {
-      final namaCtrl = TextEditingController(text: 'Poktan Harapan Makmur');
+      final namaCtrl = TextEditingController();
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Buat Kelompok Tani Baru'),
           content: TextField(
             controller: namaCtrl,
-            decoration:
-                const InputDecoration(labelText: 'Nama Kelompok Tani', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+              labelText: 'Nama Kelompok Tani',
+              hintText: 'Contoh: Poktan Sri Rejeki',
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
             FilledButton(
               onPressed: () async {
-                await widget.appState.api
-                    .createGroup(user.id, user.nama, namaCtrl.text.trim(), user.kabupaten);
-                if (ctx.mounted) Navigator.pop(ctx);
+                final nav = Navigator.of(ctx);
+                final name =
+                    namaCtrl.text.trim().isEmpty ? 'Poktan Harapan Tani' : namaCtrl.text.trim();
+                await widget.appState.api.createGroup(user.id, user.nama, name, user.kabupaten);
+                if (ctx.mounted) nav.pop();
                 await _refreshAll();
               },
               child: const Text('Buat Poktan'),
@@ -1135,7 +1423,7 @@ class _PetaniShellState extends State<PetaniShell> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: grpId,
-              decoration: const InputDecoration(labelText: 'Poktan', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Pilih Poktan'),
               items: leaderGroups
                   .map((g) => DropdownMenuItem(value: g.id, child: Text(g.nama)))
                   .toList(),
@@ -1144,8 +1432,7 @@ class _PetaniShellState extends State<PetaniShell> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: commKode,
-              decoration:
-                  const InputDecoration(labelText: 'Komoditas', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Komoditas Lot'),
               items: _commodities
                   .map((c) => DropdownMenuItem(value: c.kode, child: Text(c.nama)))
                   .toList(),
@@ -1155,8 +1442,7 @@ class _PetaniShellState extends State<PetaniShell> {
             TextField(
               controller: targetCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'Target Volume Lot (kg)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Target Volume Lot (kg)'),
             ),
           ],
         ),
@@ -1164,12 +1450,13 @@ class _PetaniShellState extends State<PetaniShell> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
+              final nav = Navigator.of(ctx);
               await widget.appState.api
                   .createLot(grpId, commKode, double.tryParse(targetCtrl.text) ?? 10000);
-              if (ctx.mounted) Navigator.pop(ctx);
+              if (ctx.mounted) nav.pop();
               await _refreshAll();
             },
-            child: const Text('Buat Lot'),
+            child: const Text('Simpan Lot'),
           ),
         ],
       ),
@@ -1196,8 +1483,7 @@ class _PetaniShellState extends State<PetaniShell> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: stId,
-              decoration:
-                  const InputDecoration(labelText: 'Pilih Stok Bebas', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Pilih Stok Bebas'),
               items: matching
                   .map((s) => DropdownMenuItem(
                         value: s.id,
@@ -1210,8 +1496,7 @@ class _PetaniShellState extends State<PetaniShell> {
             TextField(
               controller: qtyCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'Jumlah Disumbangkan (kg)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Berat Disumbangkan (kg)'),
             ),
           ],
         ),
@@ -1219,6 +1504,7 @@ class _PetaniShellState extends State<PetaniShell> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () async {
+              final nav = Navigator.of(ctx);
               final user = widget.appState.currentUser!;
               await widget.appState.api.contributeLot(
                 user.id,
@@ -1227,37 +1513,12 @@ class _PetaniShellState extends State<PetaniShell> {
                 stId,
                 double.tryParse(qtyCtrl.text) ?? 0,
               );
-              if (ctx.mounted) Navigator.pop(ctx);
+              if (ctx.mounted) nav.pop();
               await _refreshAll();
             },
             child: const Text('Simpan Kontribusi'),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _metricChip(String label, String val, {bool highlight = false}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: highlight ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-            Text(
-              val,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: highlight ? const Color(0xFF047857) : const Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
