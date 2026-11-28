@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/app_state.dart';
+import 'core/theme.dart';
 import 'screens/auth_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/petani_shell.dart';
@@ -27,24 +28,18 @@ class _SimpanJualAppState extends State<SimpanJualApp> {
     return ListenableBuilder(
       listenable: _appState,
       builder: (context, _) {
-        final fieldMode = _appState.fieldMode;
         return MaterialApp(
-          title: 'SimpanJual — SEVENT X Mobile',
+          title: 'SimpanJual: Keputusan Pascapanen',
           debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF047857),
-              brightness: Brightness.light,
-            ),
-            scaffoldBackgroundColor:
-                fieldMode ? const Color(0xFFFFFFFF) : const Color(0xFFF8FAFC),
+          theme: buildSimpanJualTheme(
+            isDark: _appState.darkMode,
+            fieldMode: _appState.fieldMode,
           ),
           builder: (context, child) {
             final mq = MediaQuery.of(context);
             return MediaQuery(
               data: mq.copyWith(
-                textScaler: TextScaler.linear(fieldMode ? 1.14 : 1.0),
+                textScaler: TextScaler.linear(_appState.fieldMode ? 1.14 : 1.0),
               ),
               child: child ?? const SizedBox.shrink(),
             );

@@ -9,45 +9,44 @@ Future<void> showServerConfigDialog(BuildContext context, AppState appState) asy
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) => AlertDialog(
-        title: const Text('Koneksi Backend Go Modular Monolith'),
+        title: const Text('Koneksi Server Backend Go'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Aplikasi Flutter terhubung ke Go Modular Monolith + Podman PostgreSQL. Bila diuji pada HP tanpa server lokal, aktifkan Mode Mandiri Offline.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF475569)),
+                'Aplikasi terhubung ke API Go Modular Monolith dan PostgreSQL Podman. Jika menguji APK tanpa server lokal, aktifkan Mode Simulasi Mandiri.',
+                style: TextStyle(fontSize: 13.5),
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: ctrl,
                 decoration: const InputDecoration(
-                  labelText: 'URL API Go Backend',
-                  hintText: 'http://10.0.2.2:8080 atau http://localhost:8080',
-                  border: OutlineInputBorder(),
+                  labelText: 'Alamat URL API Backend',
+                  hintText: 'Contoh: http://10.0.2.2:8080',
                 ),
               ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
-                runSpacing: 6,
+                runSpacing: 8,
                 children: [
-                  ActionChip(
-                    label: const Text('Emulator Android (10.0.2.2)'),
+                  OutlinedButton(
                     onPressed: () => setState(() => ctrl.text = 'http://10.0.2.2:8080'),
+                    child: const Text('Emulator Android (10.0.2.2)'),
                   ),
-                  ActionChip(
-                    label: const Text('Web / Desktop (localhost)'),
+                  OutlinedButton(
                     onPressed: () => setState(() => ctrl.text = 'http://localhost:8080'),
+                    child: const Text('Web / Desktop (localhost)'),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Mode Simulasi Mandiri (Offline APK)'),
-                subtitle: const Text('Tetap fungsional 100% saat tidak ada koneksi server'),
+                title: const Text('Mode Simulasi Mandiri (Tanpa Server)'),
+                subtitle: const Text('Menjalankan mesin hitung Dart secara lokal di perangkat'),
                 value: offline,
                 onChanged: (v) => setState(() => offline = v),
               ),
@@ -55,16 +54,17 @@ Future<void> showServerConfigDialog(BuildContext context, AppState appState) asy
           ),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
+            child: const Text('Tutup'),
           ),
           FilledButton(
             onPressed: () async {
+              final nav = Navigator.of(ctx);
               await appState.updateServerConfig(url: ctrl.text, forceOffline: offline);
-              if (ctx.mounted) Navigator.pop(ctx);
+              if (ctx.mounted) nav.pop();
             },
-            child: const Text('Simpan & Uji Koneksi'),
+            child: const Text('Simpan Koneksi'),
           ),
         ],
       ),
