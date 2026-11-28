@@ -1,7 +1,7 @@
 {
   "name": "simpanjual-web",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173",
@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "lucide-react": "^0.477.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
